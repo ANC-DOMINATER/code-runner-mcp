@@ -1,11 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { runJS, runPy } from "./service/runner.ts";
+import { runJS } from "./service/js-runner.ts";
+import { runPy } from "./service/py-runner.ts";
 import { z } from "zod";
+import process from "node:process";
 
+const nodeFSMountPoint = process.env.NODEFS_MOUNT_POINT;
 export const INCOMING_MSG_ROUTE_PATH = "/code-runner/messages";
 
 /**
- * TODO: Stream tool result; currently not supported by either MCP protocol or AI SDK
+ * TODO: Stream tool result;
  * @see https://sdk.vercel.ai/docs/ai-sdk-core/tools-and-tool-calling#tool-call-id
  * @see https://github.com/modelcontextprotocol/modelcontextprotocol/issues/117
  */
@@ -16,16 +19,27 @@ export function setUpMcpServer(
 
   server.tool(
     "python-code-runner",
-    `Execute a Python snippet using pyodide and return the combined stdout/stderr(To see the results, make sure to write to stdout/stderr ). 
+    `Execute a Python snippet using pyodide and return the combined stdout/stderr (To see the results, make sure to write to stdout/stderr). 
 Send only valid Python code compatible with pyodide runtime.
+# Use When
+- Data analysis and scientific computing tasks (e.g., using pandas to analyze JSON data)
+- Machine learning and AI experiments
+- Mathematical calculations and statistics
+- Text processing and natural language tasks
+- Prototyping algorithms or logic
+- Educational demonstrations of Python concepts
 # Packages
 You can directly import pure Python packages with wheels 
-as well as packages from PyPI, the JsDelivr CDN or from other URLs.`,
+as well as packages from PyPI, the JsDelivr CDN or from other URLs.
+# File System
+You can **ONLY** access files at \`${nodeFSMountPoint}\` (if provided).`,
     z.object({
       code: z.string().describe("Python source code to execute"),
     }).shape,
     async ({ code }, extra) => {
-      const stream = await runPy(code, extra.signal);
+      const options = nodeFSMountPoint ? { nodeFSMountPoint } : undefined;
+
+      const stream = await runPy(code, options, extra.signal);
       const decoder = new TextDecoder();
       let output = "";
       for await (const chunk of stream) {
@@ -42,6 +56,14 @@ as well as packages from PyPI, the JsDelivr CDN or from other URLs.`,
     `Execute a JavaScript/TypeScript snippet using Deno runtime and return the combined stdout/stderr(To see the results, make sure to write to stdout/stderr ). 
 Send only valid JavaScript/TypeScript code compatible with Deno runtime (prefer ESM syntax).
 ** Runs on server-side, not browser. **
+# Use When
+- Web development and API interactions
+- File system operations and automation
+- JSON/data manipulation and processing
+- Building command-line utilities
+- Testing TypeScript/JavaScript logic
+- Working with modern web APIs and libraries
+- Server-side scripting tasks
 # Packages Support
 1. For npm packages (ESM preferred):
     import { get } from "npm:lodash-es"

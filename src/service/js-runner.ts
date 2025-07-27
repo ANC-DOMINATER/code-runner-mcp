@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { getPyodide, getPip, loadDeps, makeStream } from "../tool/py.ts";
+import { makeStream } from "../tool/py.ts";
 import type { Buffer } from "node:buffer";
 import path, { join } from "node:path";
 import { mkdirSync } from "node:fs";
@@ -14,90 +14,16 @@ mkdirSync(cwd, { recursive: true });
 // const EXEC_TIMEOUT = 1000;
 const EXEC_TIMEOUT = 1000 * 60 * 1;
 
-// Cache pyodide instance
-queueMicrotask(() => {
-  getPyodide();
-  getPip();
-});
-
 const encoder = new TextEncoder();
 
 /**
- * Run arbitrary Python code (Pyodide) and **stream** its stdout / stderr.
- *
- * Optional `abortSignal` will interrupt execution via Pyodide’s interrupt
- * buffer and close the resulting stream.
- */
-export async function runPy(
-  code: string,
-  abortSignal?: AbortSignal
-): Promise<ReadableStream<Uint8Array>> {
-  const pyodide = await getPyodide();
-
-  // Load packages
-  await loadDeps(code);
-
-  // Interrupt buffer to be set when aborting
-  const interruptBuffer = new Int32Array(
-    new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT)
-  );
-
-  pyodide.setInterruptBuffer(interruptBuffer);
-
-  let controller!: ReadableStreamDefaultController<Uint8Array>;
-
-  const push =
-    (prefix: string) =>
-    (data: string): void => {
-      controller.enqueue(encoder.encode(prefix + data));
-    };
-
-  // Build the stream with proper abort behaviour
-  const stream = makeStream(
-    abortSignal,
-    (ctrl) => {
-      console.log("[start][py] streaming & timeout");
-      const timeout = setTimeout(() => {
-        console.log(`[err][py] timeout`);
-        controller.enqueue(encoder.encode("[err][py] timeout"));
-        controller.close();
-        interruptBuffer[0] = 3;
-      }, EXEC_TIMEOUT);
-
-      controller = ctrl;
-      pyodide.setStdout({ batched: push("") });
-      pyodide.setStderr({ batched: push("[stderr] ") });
-
-      // Defer execution so that `start()` returns immediately
-      queueMicrotask(async () => {
-        try {
-          // If an abort happened before execution – don’t run
-          if (abortSignal?.aborted) return;
-          await pyodide.runPythonAsync(code);
-          clearTimeout(timeout);
-          controller.close();
-        } catch (err) {
-          clearTimeout(timeout);
-          controller.error(err);
-        }
-      });
-    },
-    () => {
-      interruptBuffer[0] = 2;
-    }
-  );
-
-  return stream;
-}
-
-/**
  * Run arbitrary JavaScript using Deno (must be in PATH) and **stream**
- * its stdout / stderr.  Mirrors the `runPy` API.
+ * its stdout / stderr.
  */
-export async function runJS(
+export function runJS(
   code: string,
   abortSignal?: AbortSignal
-): Promise<ReadableStream<Uint8Array>> {
+): ReadableStream<Uint8Array> {
   // Launch Deno: `deno run --quiet -` reads the script from stdin
   console.log("[start][js] spawn");
   const userProvidedPermissions =

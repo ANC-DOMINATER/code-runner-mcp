@@ -44,7 +44,8 @@ If you have Node.js installed locally, configure:
         "jsr:@mcpc/code-runner-mcp/bin"
       ],
       "env": {
-        "DENO_PERMISSION_ARGS": "--allow-net"
+        "DENO_PERMISSION_ARGS": "--allow-net",
+        "NODEFS_MOUNT_POINT": "/tmp"
       },
       "transportType": "stdio"
     }
@@ -61,7 +62,8 @@ If you have Deno installed locally, configure:
       "command": "deno",
       "args": ["run", "--allow-all", "jsr:@mcpc/code-runner-mcp/bin"],
       "env": {
-        "DENO_PERMISSION_ARGS": "--allow-net"
+        "DENO_PERMISSION_ARGS": "--allow-net",
+        "NODEFS_MOUNT_POINT": "/mnt"
       },
       "transportType": "stdio"
     }
@@ -72,6 +74,21 @@ If you have Deno installed locally, configure:
 Notes:
 
 - **Use the DENO_PERMISSION_ARGS environment variable to declare additional permissions for JS/TS execution. By default, no execution permissions are granted. For example, `--allow-env --allow-net` adds environment variable and network permissions. Check out [Security and permissions](https://docs.deno.land/runtime/manual/permissions) for more details!**
+
+- **Use the NODEFS_MOUNT_POINT environment variable to specify where the Node.js file system should be mounted in the Python runtime. This allows Python code to access the host file system at the specified mount point (e.g., `/tmp`). If not specified, no file system mounting will occur.**
+
+  Example Python code with file system access:
+
+  ```python
+  import os
+  # List files in the mounted directory
+  print(os.listdir('/tmp'))
+
+  # Read a file from the host system
+  with open('/tmp/example.txt', 'r') as f:
+      content = f.read()
+      print(content)
+  ```
 
 - **Execution Environment**
 
