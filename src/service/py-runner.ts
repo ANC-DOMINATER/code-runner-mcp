@@ -16,7 +16,9 @@ const encoder = new TextEncoder();
  * Options for running Python code
  */
 export interface RunPyOptions {
-  /** Directory to mount Node.js file system to */
+  /** Physical directory path to mount from the host file system */
+  nodeFSRoot?: string;
+  /** Virtual directory path in Pyodide's file system to mount to (defaults to nodeFSRoot if not specified) */
   nodeFSMountPoint?: string;
 }
 
@@ -43,7 +45,7 @@ export async function runPy(
   // Handle overloaded parameters
   let options: RunPyOptions | undefined;
   let signal: AbortSignal | undefined;
-  
+
   if (optionsOrAbortSignal instanceof AbortSignal) {
     signal = optionsOrAbortSignal;
   } else {
@@ -80,7 +82,10 @@ export async function runPy(
         }
       } catch (err) {
         // Stream is already closed or errored, ignore
-        console.warn("[py] Stream already closed, ignoring output:", err instanceof Error ? err.message : String(err));
+        console.warn(
+          "[py] Stream already closed, ignoring output:",
+          err instanceof Error ? err.message : String(err)
+        );
       }
     };
 
@@ -100,7 +105,10 @@ export async function runPy(
             pyodide.setStdout({});
             pyodide.setStderr({});
           } catch (err) {
-            console.warn("[py] Error closing stream on timeout:", err instanceof Error ? err.message : String(err));
+            console.warn(
+              "[py] Error closing stream on timeout:",
+              err instanceof Error ? err.message : String(err)
+            );
           }
         }
         interruptBuffer[0] = 3;
@@ -115,7 +123,7 @@ export async function runPy(
         try {
           // If an abort happened before execution – don't run
           if (signal?.aborted) return;
-          
+
           await pyodide.runPythonAsync(code);
           clearTimeout(timeout);
           if (!streamClosed) {
@@ -152,13 +160,21 @@ export async function runPy(
 /**
  * Set up Pyodide file system based on options
  */
-function setupPyodideFileSystem(pyodide: PyodideInterface, options: RunPyOptions) {
+function setupPyodideFileSystem(
+  pyodide: PyodideInterface,
+  options: RunPyOptions
+) {
   // Mount Node.js file system if requested
-  if (options.nodeFSMountPoint) {
+  if (options.nodeFSRoot) {
+    const mountPoint = options.nodeFSMountPoint || options.nodeFSRoot;
     try {
-      pyodide.FS.mkdirTree(options.nodeFSMountPoint);
-      pyodide.FS.mount(pyodide.FS.filesystems.NODEFS, { root: "." }, options.nodeFSMountPoint);
-      console.log(`[py] Mounted Node.js FS at ${options.nodeFSMountPoint}`);
+      pyodide.FS.mkdirTree(mountPoint);
+      pyodide.FS.mount(
+        pyodide.FS.filesystems.NODEFS,
+        { root: options.nodeFSRoot },
+        mountPoint
+      );
+      console.log(`[py] Mounted Node.js FS from ${options.nodeFSRoot} to ${mountPoint}`);
     } catch (err) {
       console.warn(`[py] Failed to mount Node.js FS:`, err);
     }

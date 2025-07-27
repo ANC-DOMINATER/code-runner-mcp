@@ -4,7 +4,10 @@ import { runPy } from "./service/py-runner.ts";
 import { z } from "zod";
 import process from "node:process";
 
+const nodeFSRoot = process.env.NODEFS_ROOT;
 const nodeFSMountPoint = process.env.NODEFS_MOUNT_POINT;
+const denoPermissionArgs = process.env.DENO_PERMISSION_ARGS || "--allow-net";
+
 export const INCOMING_MSG_ROUTE_PATH = "/code-runner/messages";
 
 /**
@@ -32,12 +35,17 @@ Send only valid Python code compatible with pyodide runtime.
 You can directly import pure Python packages with wheels 
 as well as packages from PyPI, the JsDelivr CDN or from other URLs.
 # File System
-You can **ONLY** access files at \`${nodeFSMountPoint}\` (if provided).`,
+You can **ONLY** access files at \`${nodeFSMountPoint || nodeFSRoot}\` (if NODEFS_ROOT is provided).`,
     z.object({
       code: z.string().describe("Python source code to execute"),
     }).shape,
     async ({ code }, extra) => {
-      const options = nodeFSMountPoint ? { nodeFSMountPoint } : undefined;
+      const options = nodeFSRoot 
+        ? { 
+            nodeFSRoot, 
+            ...(nodeFSMountPoint && { nodeFSMountPoint })
+          }
+        : undefined;
 
       const stream = await runPy(code, options, extra.signal);
       const decoder = new TextDecoder();
@@ -74,6 +82,9 @@ Send only valid JavaScript/TypeScript code compatible with Deno runtime (prefer 
 3. Support NodeJS built-in modules:
     import fs from "node:fs"
     import path from "node:path"
+# Strict Deno Permissions
+- By default, Deno runs with strict permissions.
+- Current permissions are: ${denoPermissionArgs}
 `,
     z.object({
       code: z.string().describe("JavaScript/TypeScript source code to execute"),
