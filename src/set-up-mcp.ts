@@ -31,20 +31,53 @@ Send only valid Python code compatible with pyodide runtime.
 - Text processing and natural language tasks
 - Prototyping algorithms or logic
 - Educational demonstrations of Python concepts
-# Packages
-You can directly import pure Python packages with wheels 
-as well as packages from PyPI, the JsDelivr CDN or from other URLs.
-# File System
-You can **ONLY** access files at \`${nodeFSMountPoint || nodeFSRoot}\` (if NODEFS_ROOT is provided).`,
+
+# Parameters
+This tool accepts two parameters:
+**code** (required): Python source code to execute
+- Send only valid Python code compatible with pyodide runtime
+- Make sure to write to stdout/stderr to see results
+- You can directly import pure Python packages with wheels as well as packages from PyPI, the JsDelivr CDN or from other URLs
+
+**importToPackageMap** (optional but recommended): Package name mappings for imports
+- **IMPORTANT**: Many popular packages have different import names vs package names
+- **Always consider** if your imports need this mapping, especially for: sklearn, cv2, PIL, skimage, etc.
+- Format: \`{"import_name": "package_name"}\`
+- Common examples: \`{"sklearn": "scikit-learn", "cv2": "opencv-python", "PIL": "Pillow", "skimage": "scikit-image"}\`
+- **When to use**: Import name differs from package name, or you need custom package versions
+- **Default mappings included**: sklearn→scikit-learn, PIL→Pillow, cv2→opencv-python, skimage→scikit-image
+- **Overrides**: Your mappings will override defaults for specified imports
+- **Auto-handling**: Dotted imports work automatically (sklearn.model_selection → sklearn)
+
+${
+  nodeFSMountPoint || nodeFSRoot
+    ? `# File System
+You can **ONLY** access files at \`${
+        nodeFSMountPoint || nodeFSRoot
+      }\`, ALLWAYS use this path when working with files.`
+    : ""
+}`,
     z.object({
       code: z.string().describe("Python source code to execute"),
+      importToPackageMap: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe(
+          "HIGHLY RECOMMENDED for imports like sklearn, cv2, PIL, skimage, etc. " +
+            "Mapping from import names to package names for micropip installation. " +
+            "Common examples: {'sklearn': 'scikit-learn', 'cv2': 'opencv-python', 'PIL': 'Pillow', 'skimage': 'scikit-image'}. " +
+            "Always consider if your imports need this mapping. Overrides default mappings for specified imports."
+        ),
     }).shape,
-    async ({ code }, extra) => {
-      const options = nodeFSRoot 
-        ? { 
-            nodeFSRoot, 
-            ...(nodeFSMountPoint && { nodeFSMountPoint })
+    async ({ code, importToPackageMap }, extra) => {
+      const options = nodeFSRoot
+        ? {
+            nodeFSRoot,
+            ...(nodeFSMountPoint && { nodeFSMountPoint }),
+            ...(importToPackageMap && { importToPackageMap }),
           }
+        : importToPackageMap
+        ? { importToPackageMap }
         : undefined;
 
       const stream = await runPy(code, options, extra.signal);

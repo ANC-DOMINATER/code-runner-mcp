@@ -20,6 +20,8 @@ export interface RunPyOptions {
   nodeFSRoot?: string;
   /** Virtual directory path in Pyodide's file system to mount to (defaults to nodeFSRoot if not specified) */
   nodeFSMountPoint?: string;
+  /** Custom mapping from import names to package names for micropip installation */
+  importToPackageMap?: Record<string, string>;
 }
 
 /**
@@ -61,7 +63,7 @@ export async function runPy(
   }
 
   // Load packages
-  await loadDeps(code);
+  await loadDeps(code, options?.importToPackageMap);
 
   // Interrupt buffer to be set when aborting
   const interruptBuffer = new Int32Array(
@@ -77,8 +79,19 @@ export async function runPy(
     (prefix: string) =>
     (data: string): void => {
       try {
-        if (!streamClosed) {
-          controller.enqueue(encoder.encode(prefix + data));
+        if (!streamClosed && data) {
+          // Split large output into smaller chunks to avoid buffer overflow
+          const maxChunkSize = 8192; // 8KB chunks
+          if (data.length > maxChunkSize) {
+            // Split the data into smaller chunks
+            for (let i = 0; i < data.length; i += maxChunkSize) {
+              const chunk = data.slice(i, i + maxChunkSize);
+              controller.enqueue(encoder.encode(prefix + chunk));
+              prefix = ""; // Only add prefix to the first chunk
+            }
+          } else {
+            controller.enqueue(encoder.encode(prefix + data));
+          }
         }
       } catch (err) {
         // Stream is already closed or errored, ignore
@@ -115,8 +128,34 @@ export async function runPy(
       }, EXEC_TIMEOUT);
 
       controller = ctrl;
-      pyodide.setStdout({ batched: push("") });
-      pyodide.setStderr({ batched: push("[stderr] ") });
+      
+      // Use non-batched output to avoid buffer overflow issues
+      // This sends output immediately instead of batching it
+      pyodide.setStdout({ 
+        batched: (data: string) => {
+          // Process output in smaller chunks to prevent OSError
+          const lines = data.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line || i < lines.length - 1) { // Include empty lines except the last one
+              push("")(line + (i < lines.length - 1 ? '\n' : ''));
+            }
+          }
+        }
+      });
+      
+      pyodide.setStderr({ 
+        batched: (data: string) => {
+          // Process stderr output in smaller chunks too
+          const lines = data.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line || i < lines.length - 1) {
+              push("[stderr] ")(line + (i < lines.length - 1 ? '\n' : ''));
+            }
+          }
+        }
+      });
 
       // Defer execution so that `start()` returns immediately
       queueMicrotask(async () => {

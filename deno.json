@@ -4,7 +4,14 @@
     "description": "Run Javascript/Python code in a secure sandbox, with support for importing **any package**! 🚀",
     "tasks": {
         "server:watch": "deno -A --watch ./src/server.ts",
-        "server:compile": "echo no need to compile"
+        "server:compile": "echo no need to compile",
+        "test": "deno run --allow-all tests/run-tests.ts",
+        "test:basic": "deno run --allow-all tests/run-basic-tests.ts",
+        "test:watch": "deno run --allow-all tests/run-tests.ts --watch",
+        "test:coverage": "deno run --allow-all tests/run-tests.ts --coverage",
+        "test:js": "deno run --allow-all tests/run-tests.ts --filter 'JavaScript'",
+        "test:py": "deno run --allow-all tests/run-tests.ts --filter 'Python'",
+        "test:integration": "deno run --allow-all tests/run-tests.ts --filter 'Integration'"
     },
     "imports": {
         "@hono/zod-openapi": "npm:@hono/zod-openapi@^0.19.2",
