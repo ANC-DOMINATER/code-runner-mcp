@@ -8,9 +8,7 @@ let pyodideInstance: Promise<PyodideInterface> | null = null;
 
 export const getPyodide = async (): Promise<PyodideInterface> => {
   if (!pyodideInstance) {
-    pyodideInstance = loadPyodide({
-      indexURL: `https://cdn.jsdelivr.net/pyodide/v${pyodideVersion}/full/`,
-    });
+    pyodideInstance = loadPyodide({});
   }
   return pyodideInstance;
 };
