@@ -1,10 +1,16 @@
-import { loadPyodide, type PyodideInterface } from "pyodide";
+import {
+  loadPyodide,
+  version as pyodideVersion,
+  type PyodideInterface,
+} from "pyodide";
 
 let pyodideInstance: Promise<PyodideInterface> | null = null;
 
 export const getPyodide = async (): Promise<PyodideInterface> => {
   if (!pyodideInstance) {
-    pyodideInstance = loadPyodide({});
+    pyodideInstance = loadPyodide({
+      indexURL: `https://cdn.jsdelivr.net/pyodide/v${pyodideVersion}/full/`,
+    });
   }
   return pyodideInstance;
 };
@@ -16,7 +22,6 @@ export const getPip = async () => {
   return micropip;
 };
 
-
 export const loadDeps = async (
   code: string,
   importToPackageMap: Record<string, string> = {}
@@ -25,12 +30,12 @@ export const loadDeps = async (
 
   // Merge user-provided mapping with default mapping
   const defaultMappings: Record<string, string> = {
-    'sklearn': 'scikit-learn',
-    'cv2': 'opencv-python',
-    'PIL': 'Pillow',
-    'bs4': 'beautifulsoup4',
+    sklearn: "scikit-learn",
+    cv2: "opencv-python",
+    PIL: "Pillow",
+    bs4: "beautifulsoup4",
   };
-  
+
   const combinedMap: Record<string, string> = {
     ...defaultMappings,
     ...importToPackageMap,
@@ -96,23 +101,31 @@ result`;
       });
 
       // Remove duplicates and filter out empty strings
-      const uniquePackages = [...new Set(packagesToInstall)].filter((pkg) => typeof pkg === 'string' && pkg.trim().length > 0);
-      
+      const uniquePackages = [...new Set(packagesToInstall)].filter(
+        (pkg) => typeof pkg === "string" && pkg.trim().length > 0
+      );
+
       if (uniquePackages.length === 0) {
         console.log("[py] No packages to install after mapping");
         return;
       }
-      
+
       console.log("[py] Found missing imports:", imports);
       console.log("[py] Installing packages:", uniquePackages);
-      
+
       // Try batch installation first for better performance
       try {
         await pip.install(uniquePackages);
-        console.log(`[py] Successfully installed all packages: ${uniquePackages.join(', ')}`);
+        console.log(
+          `[py] Successfully installed all packages: ${uniquePackages.join(
+            ", "
+          )}`
+        );
       } catch (_batchError) {
-        console.warn("[py] Batch installation failed, trying individual installation");
-        
+        console.warn(
+          "[py] Batch installation failed, trying individual installation"
+        );
+
         // Fall back to individual installation
         for (const pkg of uniquePackages) {
           try {
