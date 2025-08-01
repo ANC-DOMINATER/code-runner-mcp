@@ -88,6 +88,7 @@ print(f"Found {len(files)} files")
 - **`DENO_PERMISSION_ARGS`**: JS/TS execution permissions (e.g., `--allow-env --allow-net`)
 - **`NODEFS_ROOT`**: Host file system root directory path for Python access
 - **`NODEFS_MOUNT_POINT`**: Mount point path in Python environment (defaults to NODEFS_ROOT if not specified)
+- **`PYODIDE_PACKAGE_BASE_URL`**: Custom package download source for Pyodide (e.g., private mirror CDN)
 
 ## 🛡️ Security Features
 

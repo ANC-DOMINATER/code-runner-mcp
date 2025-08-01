@@ -32,14 +32,21 @@ export function readStreamWithTimeout(
   stream: ReadableStream<Uint8Array>, 
   timeoutMs: number = 5000
 ): Promise<string> {
+  let timeoutId: number;
+  
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error(`Stream read timeout after ${timeoutMs}ms`)), timeoutMs);
+    timeoutId = setTimeout(() => reject(new Error(`Stream read timeout after ${timeoutMs}ms`)), timeoutMs);
   });
   
   return Promise.race([
     readStreamToString(stream),
     timeoutPromise
-  ]);
+  ]).finally(() => {
+    // Clean up the timeout to prevent leaks
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
 }
 
 // Mock environment variables for testing

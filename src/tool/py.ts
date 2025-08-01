@@ -8,7 +8,17 @@ let pyodideInstance: Promise<PyodideInterface> | null = null;
 
 export const getPyodide = async (): Promise<PyodideInterface> => {
   if (!pyodideInstance) {
-    pyodideInstance = loadPyodide({});
+    // Support custom package download source (e.g., using private mirror)
+    // Can be specified via environment variable PYODIDE_PACKAGE_BASE_URL
+    const customPackageBaseUrl = Deno.env.get("PYODIDE_PACKAGE_BASE_URL");
+    const packageBaseUrl = customPackageBaseUrl 
+      ? `${customPackageBaseUrl.replace(/\/$/, '')}/` // Ensure trailing slash
+      : `https://cdn.jsdelivr.net/pyodide/v${pyodideVersion}/full/`;
+
+    pyodideInstance = loadPyodide({
+      // @ts-ignore: Pyodide types may not include all configuration options
+      packageBaseUrl
+    });
   }
   return pyodideInstance;
 };
