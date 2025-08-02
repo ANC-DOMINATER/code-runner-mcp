@@ -3,6 +3,7 @@ import {
   version as pyodideVersion,
   type PyodideInterface,
 } from "pyodide";
+import process from "node:process";
 
 let pyodideInstance: Promise<PyodideInterface> | null = null;
 
@@ -10,13 +11,13 @@ export const getPyodide = async (): Promise<PyodideInterface> => {
   if (!pyodideInstance) {
     // Support custom package download source (e.g., using private mirror)
     // Can be specified via environment variable PYODIDE_PACKAGE_BASE_URL
-    const customPackageBaseUrl = Deno.env.get("PYODIDE_PACKAGE_BASE_URL");
-    const packageBaseUrl = customPackageBaseUrl 
-      ? `${customPackageBaseUrl.replace(/\/$/, '')}/` // Ensure trailing slash
+    const customPackageBaseUrl = process.env.PYODIDE_PACKAGE_BASE_URL;
+    const packageBaseUrl = customPackageBaseUrl
+      ? `${customPackageBaseUrl.replace(/\/$/, "")}/` // Ensure trailing slash
       : `https://fastly.jsdelivr.net/pyodide/v${pyodideVersion}/full/`;
 
     pyodideInstance = loadPyodide({
-      // TODO: seems like pyodide did not support custom package base URL.
+      // TODO: will be supported when v0.28.1 is released: https://github.com/pyodide/pyodide/commit/7be415bd4e428dc8e36d33cfc1ce2d1de10111c4
       // @ts-ignore: Pyodide types may not include all configuration options
       packageBaseUrl,
     });

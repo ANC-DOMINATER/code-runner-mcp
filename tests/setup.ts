@@ -50,7 +50,9 @@ export function readStreamWithTimeout(
 }
 
 // Mock environment variables for testing
-export function withEnv<T>(envVars: Record<string, string>, fn: () => T): T {
+export function withEnv<T>(envVars: Record<string, string>, fn: () => T): T;
+export function withEnv<T>(envVars: Record<string, string>, fn: () => Promise<T>): Promise<T>;
+export function withEnv<T>(envVars: Record<string, string>, fn: () => T | Promise<T>): T | Promise<T> {
   const originalEnv = { ...Deno.env.toObject() };
   
   // Set test environment variables
@@ -58,9 +60,7 @@ export function withEnv<T>(envVars: Record<string, string>, fn: () => T): T {
     Deno.env.set(key, value);
   }
   
-  try {
-    return fn();
-  } finally {
+  const restoreEnv = () => {
     // Restore original environment
     for (const key of Object.keys(envVars)) {
       if (originalEnv[key] !== undefined) {
@@ -69,5 +69,21 @@ export function withEnv<T>(envVars: Record<string, string>, fn: () => T): T {
         Deno.env.delete(key);
       }
     }
+  };
+  
+  try {
+    const result = fn();
+    
+    // Handle async functions
+    if (result instanceof Promise) {
+      return result.finally(restoreEnv);
+    }
+    
+    // Handle sync functions
+    restoreEnv();
+    return result;
+  } catch (error) {
+    restoreEnv();
+    throw error;
   }
 }
