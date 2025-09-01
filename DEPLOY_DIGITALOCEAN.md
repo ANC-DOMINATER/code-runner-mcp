@@ -13,7 +13,7 @@ git push origin main
 ### Step 2: Deploy via DigitalOcean Console
 1. Go to [DigitalOcean App Platform](https://cloud.digitalocean.com/apps)
 2. Click **"Create App"**
-3. Connect your GitHub repository: `mcpc-tech/code-runner-mcp`
+3. Connect your GitHub repository: `ANC-DOMINATER/code-runner-mcp`
 4. Choose branch: `main`
 5. Auto-deploy on push: ✅ **Enabled**
 

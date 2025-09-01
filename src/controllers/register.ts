@@ -17,4 +17,14 @@ export const registerAgent = (app: OpenAPIHono) => {
       service: "code-runner-mcp"
     });
   });
+  
+  // Add standard MCP endpoint alias
+  app.get("/mcp", async (c) => {
+    // Redirect to SSE endpoint for MCP connection
+    const response = await fetch(c.req.url.replace('/mcp', '/sse'), {
+      method: 'GET',
+      headers: c.req.header()
+    });
+    return response;
+  });
 };
