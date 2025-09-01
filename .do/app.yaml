@@ -4,7 +4,7 @@ services:
 - name: web
   source_dir: /
   github:
-    repo: mcpc-tech/code-runner-mcp
+    repo: ANC-DOMINATER/code-runner-mcp
     branch: main
     deploy_on_push: true
   dockerfile_path: Dockerfile
