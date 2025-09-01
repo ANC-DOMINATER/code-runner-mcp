@@ -8,7 +8,7 @@ const nodeFSRoot = process.env.NODEFS_ROOT;
 const nodeFSMountPoint = process.env.NODEFS_MOUNT_POINT;
 const denoPermissionArgs = process.env.DENO_PERMISSION_ARGS || "--allow-net";
 
-export const INCOMING_MSG_ROUTE_PATH = "/code-runner/messages";
+export const INCOMING_MSG_ROUTE_PATH = "/messages";
 
 /**
  * TODO: Stream tool result;
