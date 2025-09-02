@@ -25,13 +25,21 @@ export const mcpHandler = (app: OpenAPIHono) => {
     try {
       const body = await c.req.json();
       
+      // Log for debugging
+      console.log("[MCP] Request:", JSON.stringify(body, null, 2));
+      
       // Handle MCP JSON-RPC requests
       if (body.method === "initialize") {
+        // Try to be compatible with both old and new protocol versions
+        const clientVersion = body.params?.protocolVersion || "2024-11-05";
+        const supportedVersions = ["2024-11-05", "2025-06-18"];
+        const protocolVersion = supportedVersions.includes(clientVersion) ? clientVersion : "2024-11-05";
+        
         const response = {
           jsonrpc: "2.0",
           id: body.id,
           result: {
-            protocolVersion: "2025-06-18",
+            protocolVersion,
             capabilities: {
               tools: {
                 listChanged: true
@@ -45,6 +53,8 @@ export const mcpHandler = (app: OpenAPIHono) => {
             }
           }
         };
+        
+        console.log("[MCP] Initialize response:", JSON.stringify(response, null, 2));
         
         // Ensure proper JSON response with CORS headers
         c.header("Content-Type", "application/json");
@@ -92,6 +102,8 @@ export const mcpHandler = (app: OpenAPIHono) => {
             ]
           }
         };
+        
+        console.log("[MCP] Tools list response:", JSON.stringify(response, null, 2));
         
         c.header("Content-Type", "application/json");
         return c.json(response);
