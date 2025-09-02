@@ -1,13 +1,13 @@
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import { messageHandler } from "./messages.controller.ts";
-import { streamableHttpHandler, sseHandler } from "./sse.controller.ts";
+import { mcpHandler, sseHandler } from "./mcp.controller.ts";
 import { server } from "../app.ts";
 
 import { openApiDocsHandler } from "@mcpc/core";
 
 export const registerAgent = (app: OpenAPIHono) => {
   messageHandler(app);
-  streamableHttpHandler(app); // Primary: Streamable HTTP at /mcp
+  mcpHandler(app); // Primary: MCP JSON-RPC at /mcp
   sseHandler(app); // Deprecated: SSE redirect for backward compatibility
   openApiDocsHandler(app);
   
@@ -26,7 +26,11 @@ export const registerAgent = (app: OpenAPIHono) => {
       const capabilities = server.getCapabilities?.();
       return c.json({
         capabilities: capabilities || {},
-        usage: "Use POST /messages to execute tools via MCP protocol"
+        available_tools: [
+          "python-code-runner",
+          "javascript-code-runner"
+        ],
+        usage: "Use POST /mcp with JSON-RPC to execute tools"
       });
     } catch (error) {
       return c.json({

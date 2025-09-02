@@ -8,7 +8,7 @@ export const server: McpServer = setUpMcpServer(
     name: "code-runner-mcp",
     version: "0.1.0",
   },
-  { capabilities: { tools: {} } }
+  { capabilities: { tools: {}, prompts: {}, resources: {} } }
 );
 
 export const createApp: () => OpenAPIHono = () => {
