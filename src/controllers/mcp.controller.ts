@@ -25,24 +25,13 @@ export const mcpHandler = (app: OpenAPIHono) => {
     try {
       const body = await c.req.json();
       
-      // Log incoming requests for debugging
-      console.log("[MCP] Incoming request:", JSON.stringify(body, null, 2));
-      console.log("[MCP] Headers:", Object.fromEntries(c.req.raw.headers.entries()));
-      
       // Handle MCP JSON-RPC requests
       if (body.method === "initialize") {
-        // Use the client's protocol version if provided, otherwise use our latest
-        const clientProtocolVersion = body.params?.protocolVersion;
-        const supportedVersions = ["2024-11-05", "2025-06-18"];
-        const protocolVersion = supportedVersions.includes(clientProtocolVersion) 
-          ? clientProtocolVersion 
-          : "2025-06-18";
-          
         const response = {
           jsonrpc: "2.0",
           id: body.id,
           result: {
-            protocolVersion,
+            protocolVersion: "2025-06-18",
             capabilities: {
               tools: {
                 listChanged: true
@@ -223,20 +212,6 @@ export const mcpHandler = (app: OpenAPIHono) => {
         }
       }
     });
-  });
-
-  // Add endpoint for WebSocket upgrade (in case n8n needs WebSocket)
-  app.get("/mcp/ws", async (c) => {
-    return c.text("WebSocket endpoint - use appropriate WebSocket client", 426, {
-      "Upgrade": "websocket",
-      "Connection": "Upgrade"
-    });
-  });
-
-  // Add alternative endpoint paths that n8n might expect
-  app.post("/", async (c) => {
-    // Redirect root POST requests to /mcp
-    return app.fetch(new Request(c.req.url.replace(/\/$/, "/mcp"), c.req.raw));
   });
 };
 
