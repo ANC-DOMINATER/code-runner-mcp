@@ -1,6 +1,6 @@
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import { messageHandler } from "./messages.controller.ts";
-import { streamableHttpHandler, sseHandler } from "./streamable-http.controller.ts";
+import { streamableHttpHandler, sseHandler } from "./sse.controller.ts";
 
 import { openApiDocsHandler } from "@mcpc/core";
 
