@@ -1,12 +1,13 @@
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import { messageHandler } from "./messages.controller.ts";
-import { sseHandler } from "./sse.controller.ts";
+import { streamableHttpHandler, sseHandler } from "./streamable-http.controller.ts";
 
 import { openApiDocsHandler } from "@mcpc/core";
 
 export const registerAgent = (app: OpenAPIHono) => {
   messageHandler(app);
-  sseHandler(app);
+  streamableHttpHandler(app); // Primary: Streamable HTTP at /mcp
+  sseHandler(app); // Deprecated: SSE redirect for backward compatibility
   openApiDocsHandler(app);
   
   // Health check endpoint for DigitalOcean App Platform
@@ -16,15 +17,5 @@ export const registerAgent = (app: OpenAPIHono) => {
       timestamp: new Date().toISOString(),
       service: "code-runner-mcp"
     });
-  });
-  
-  // Add standard MCP endpoint alias
-  app.get("/mcp", async (c) => {
-    // Redirect to SSE endpoint for MCP connection
-    const response = await fetch(c.req.url.replace('/mcp', '/sse'), {
-      method: 'GET',
-      headers: c.req.header()
-    });
-    return response;
   });
 };

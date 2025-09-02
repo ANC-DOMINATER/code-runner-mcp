@@ -4,19 +4,19 @@ import { handleConnecting } from "@mcpc/core";
 import { server } from "../app.ts";
 import { INCOMING_MSG_ROUTE_PATH } from "../set-up-mcp.ts";
 
-export const sseHandler = (app: OpenAPIHono) =>
+export const streamableHttpHandler = (app: OpenAPIHono) =>
   app.openapi(
     createRoute({
       method: "get",
-      path: "/sse",
+      path: "/mcp",
       responses: {
         200: {
           content: {
-            "text/event-stream": {
+            "application/json": {
               schema: z.any(),
             },
           },
-          description: "Returns the processed message",
+          description: "MCP Streamable HTTP connection",
         },
         400: {
           content: {
@@ -46,5 +46,36 @@ export const sseHandler = (app: OpenAPIHono) =>
           400
         );
       }
+    }
+  );
+
+// Keep SSE for backward compatibility but mark as deprecated
+export const sseHandler = (app: OpenAPIHono) =>
+  app.openapi(
+    createRoute({
+      method: "get",
+      path: "/sse",
+      responses: {
+        200: {
+          content: {
+            "text/event-stream": {
+              schema: z.any(),
+            },
+          },
+          description: "DEPRECATED: Use /mcp endpoint with Streamable HTTP instead",
+        },
+        400: {
+          content: {
+            "application/json": {
+              schema: z.any(),
+            },
+          },
+          description: "Returns an error",
+        },
+      },
+    }),
+    async (c) => {
+      // Redirect to the new streamable HTTP endpoint
+      return c.redirect("/mcp", 301);
     }
   );

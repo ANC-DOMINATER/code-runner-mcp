@@ -15,9 +15,12 @@ app.get("/", (c) => {
   return c.json({ 
     message: "Code Runner MCP Server is running!", 
     version: "0.1.0",
+    transport: "streamable-http",
     endpoints: {
+      mcp: "/mcp",
       health: "/health",
-      docs: "/docs"
+      docs: "/docs",
+      messages: "/messages"
     }
   });
 });

@@ -56,16 +56,16 @@ https://your-app-name.ondigitalocean.app
 ```
 
 **MCP Inspector Connection:**
-- **Transport Type**: Streamable HTTP
-- **URL**: `https://monkfish-app-9ciwk.ondigitalocean.app/sse`
-- **Alternative URL**: `https://monkfish-app-9ciwk.ondigitalocean.app/mcp`
+- **Transport Type**: Streamable HTTP ✅ (Recommended)
+- **URL**: `https://monkfish-app-9ciwk.ondigitalocean.app/mcp`
 
 **API Endpoints:**
 - Root: `https://your-app-name.ondigitalocean.app/`
 - Health: `https://your-app-name.ondigitalocean.app/health`
 - Documentation: `https://your-app-name.ondigitalocean.app/docs`
-- MCP SSE: `https://your-app-name.ondigitalocean.app/sse`
+- **MCP (Streamable HTTP)**: `https://your-app-name.ondigitalocean.app/mcp` ✅
 - MCP Messages: `https://your-app-name.ondigitalocean.app/messages`
+- ~~SSE (Deprecated)~~: `https://your-app-name.ondigitalocean.app/sse`
 
 ## 🔄 Auto-Deployment
 Every push to `main` branch automatically triggers a new deployment.
