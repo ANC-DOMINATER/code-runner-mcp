@@ -14,12 +14,11 @@ app.route("/", createApp());
 app.get("/", (c) => {
   return c.json({ 
     message: "Code Runner MCP Server is running!", 
-    version: "0.1.0",
+    version: "0.2.0",
     transport: "streamable-http",
     endpoints: {
       mcp: "/mcp",
       health: "/health",
-      docs: "/docs",
       messages: "/messages",
       tools: "/tools"
     }
