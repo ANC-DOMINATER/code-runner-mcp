@@ -55,10 +55,17 @@ Once deployed, your MCP server will be available at:
 https://your-app-name.ondigitalocean.app
 ```
 
-Health check endpoint:
-```
-https://your-app-name.ondigitalocean.app/health
-```
+**MCP Inspector Connection:**
+- **Transport Type**: Streamable HTTP
+- **URL**: `https://monkfish-app-9ciwk.ondigitalocean.app/sse`
+- **Alternative URL**: `https://monkfish-app-9ciwk.ondigitalocean.app/mcp`
+
+**API Endpoints:**
+- Root: `https://your-app-name.ondigitalocean.app/`
+- Health: `https://your-app-name.ondigitalocean.app/health`
+- Documentation: `https://your-app-name.ondigitalocean.app/docs`
+- MCP SSE: `https://your-app-name.ondigitalocean.app/sse`
+- MCP Messages: `https://your-app-name.ondigitalocean.app/messages`
 
 ## 🔄 Auto-Deployment
 Every push to `main` branch automatically triggers a new deployment.

@@ -3,11 +3,14 @@ FROM denoland/deno:latest
 # Create working directory
 WORKDIR /app
 
-# Cache dependencies for faster builds
-RUN deno cache jsr:@mcpc/code-runner-mcp
+# Copy your local source code
+COPY . .
+
+# Cache dependencies
+RUN deno cache src/server.ts
 
 # Expose port
 EXPOSE 9000
 
-# Run the HTTP server instead of STDIO server for DigitalOcean
-ENTRYPOINT ["deno", "run", "--allow-all", "jsr:@mcpc/code-runner-mcp/server"]
+# Run the local server file directly
+ENTRYPOINT ["deno", "run", "--allow-all", "src/server.ts"]
