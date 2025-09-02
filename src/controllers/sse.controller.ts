@@ -5,30 +5,35 @@ import { server } from "../app.ts";
 import { INCOMING_MSG_ROUTE_PATH } from "../set-up-mcp.ts";
 
 export const streamableHttpHandler = (app: OpenAPIHono) => {
-  // Simple test endpoint to check if MCP server info is accessible
+  // Handle server info requests (GET /mcp)
   app.get("/mcp", async (c) => {
     try {
-      // Return basic MCP server information for testing
+      // Get the actual server capabilities from the MCP server
+      const serverInfo = {
+        name: server.serverInfo?.name || "code-runner-mcp",
+        version: server.serverInfo?.version || "0.1.0"
+      };
+
+      // Get available tools from the server - only actual tools, no fallbacks
+      const capabilities = server.getCapabilities?.() || { tools: {} };
+      
       return c.json({
         jsonrpc: "2.0",
         result: {
           protocolVersion: "2024-11-05",
-          capabilities: {
-            tools: {},
-            prompts: {},
-            resources: {}
-          },
-          serverInfo: {
-            name: "code-runner-mcp",
-            version: "0.1.0"
-          }
+          capabilities,
+          serverInfo
         }
       });
     } catch (error) {
       console.error("MCP endpoint error:", error);
       return c.json({
-        error: "Failed to handle MCP request",
-        message: error instanceof Error ? error.message : "Unknown error"
+        jsonrpc: "2.0",
+        error: {
+          code: -32603,
+          message: "Internal error",
+          data: error instanceof Error ? error.message : "Unknown error"
+        }
       }, 500);
     }
   });

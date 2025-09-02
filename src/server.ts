@@ -20,7 +20,8 @@ app.get("/", (c) => {
       mcp: "/mcp",
       health: "/health",
       docs: "/docs",
-      messages: "/messages"
+      messages: "/messages",
+      tools: "/tools"
     }
   });
 });

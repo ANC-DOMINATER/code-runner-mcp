@@ -1,6 +1,7 @@
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import { messageHandler } from "./messages.controller.ts";
 import { streamableHttpHandler, sseHandler } from "./sse.controller.ts";
+import { server } from "../app.ts";
 
 import { openApiDocsHandler } from "@mcpc/core";
 
@@ -17,5 +18,21 @@ export const registerAgent = (app: OpenAPIHono) => {
       timestamp: new Date().toISOString(),
       service: "code-runner-mcp"
     });
+  });
+
+  // Tools list endpoint for debugging - only show actual tools
+  app.get("/tools", (c) => {
+    try {
+      const capabilities = server.getCapabilities?.();
+      return c.json({
+        capabilities: capabilities || {},
+        usage: "Use POST /messages to execute tools via MCP protocol"
+      });
+    } catch (error) {
+      return c.json({
+        error: "Failed to get server capabilities",
+        message: error instanceof Error ? error.message : "Unknown error"
+      }, 500);
+    }
   });
 };
