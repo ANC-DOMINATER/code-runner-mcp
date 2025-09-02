@@ -4,6 +4,22 @@ import { runJS } from "../service/js-runner.ts";
 import { runPy } from "../service/py-runner.ts";
 
 export const mcpHandler = (app: OpenAPIHono) => {
+  // Add CORS headers middleware for MCP endpoint
+  app.use("/mcp", async (c, next) => {
+    // Set CORS headers
+    c.header("Access-Control-Allow-Origin", "*");
+    c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    c.header("Access-Control-Max-Age", "86400");
+    
+    await next();
+  });
+
+  // Handle CORS preflight requests
+  app.options("/mcp", (c) => {
+    return c.text("", 200);
+  });
+
   // Handle MCP protocol requests (POST for JSON-RPC)
   app.post("/mcp", async (c) => {
     try {
@@ -11,7 +27,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
       
       // Handle MCP JSON-RPC requests
       if (body.method === "initialize") {
-        return c.json({
+        const response = {
           jsonrpc: "2.0",
           id: body.id,
           result: {
@@ -28,11 +44,15 @@ export const mcpHandler = (app: OpenAPIHono) => {
               version: "0.1.0"
             }
           }
-        });
+        };
+        
+        // Ensure proper JSON response with CORS headers
+        c.header("Content-Type", "application/json");
+        return c.json(response);
       }
       
       if (body.method === "tools/list") {
-        return c.json({
+        const response = {
           jsonrpc: "2.0",
           id: body.id,
           result: {
@@ -71,7 +91,10 @@ export const mcpHandler = (app: OpenAPIHono) => {
               }
             ]
           }
-        });
+        };
+        
+        c.header("Content-Type", "application/json");
+        return c.json(response);
       }
       
       if (body.method === "tools/call") {
