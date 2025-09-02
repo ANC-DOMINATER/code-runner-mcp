@@ -1,8 +1,7 @@
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
-import type { ErrorSchema as _ErrorSchema } from "@mcpc/core";
-import { handleConnecting } from "@mcpc/core";
 import { server } from "../app.ts";
-import { INCOMING_MSG_ROUTE_PATH } from "../set-up-mcp.ts";
+import { runJS } from "../service/js-runner.ts";
+import { runPy } from "../service/py-runner.ts";
 
 export const mcpHandler = (app: OpenAPIHono) => {
   // Handle MCP protocol requests (POST for JSON-RPC)
@@ -16,7 +15,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
           jsonrpc: "2.0",
           id: body.id,
           result: {
-            protocolVersion: "2024-11-05",
+            protocolVersion: "2025-06-18",
             capabilities: {
               tools: {
                 listChanged: true
@@ -76,14 +75,86 @@ export const mcpHandler = (app: OpenAPIHono) => {
       }
       
       if (body.method === "tools/call") {
-        // Handle tool execution via the actual MCP server
-        const response = await handleConnecting(c.req.raw, server, INCOMING_MSG_ROUTE_PATH);
-        return response;
+        const { name, arguments: args } = body.params;
+        
+        try {
+          if (name === "python-code-runner") {
+            const options = args.importToPackageMap ? { importToPackageMap: args.importToPackageMap } : undefined;
+            const stream = await runPy(args.code, options);
+            const decoder = new TextDecoder();
+            let output = "";
+            for await (const chunk of stream) {
+              output += decoder.decode(chunk);
+            }
+            
+            return c.json({
+              jsonrpc: "2.0",
+              id: body.id,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: output || "(no output)"
+                  }
+                ]
+              }
+            });
+          }
+          
+          if (name === "javascript-code-runner") {
+            const stream = await runJS(args.code);
+            const decoder = new TextDecoder();
+            let output = "";
+            for await (const chunk of stream) {
+              output += decoder.decode(chunk);
+            }
+            
+            return c.json({
+              jsonrpc: "2.0",
+              id: body.id,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: output || "(no output)"
+                  }
+                ]
+              }
+            });
+          }
+          
+          // Tool not found
+          return c.json({
+            jsonrpc: "2.0",
+            id: body.id,
+            error: {
+              code: -32601,
+              message: `Tool '${name}' not found`
+            }
+          });
+          
+        } catch (error) {
+          return c.json({
+            jsonrpc: "2.0",
+            id: body.id,
+            error: {
+              code: -32603,
+              message: "Tool execution failed",
+              data: error instanceof Error ? error.message : "Unknown error"
+            }
+          });
+        }
       }
       
-      // Handle other MCP methods
-      const response = await handleConnecting(c.req.raw, server, INCOMING_MSG_ROUTE_PATH);
-      return response;
+      // Method not found
+      return c.json({
+        jsonrpc: "2.0",
+        id: body.id,
+        error: {
+          code: -32601,
+          message: `Method '${body.method}' not found`
+        }
+      });
       
     } catch (error) {
       console.error("MCP protocol error:", error);
@@ -91,11 +162,11 @@ export const mcpHandler = (app: OpenAPIHono) => {
         jsonrpc: "2.0",
         id: null,
         error: {
-          code: -32603,
-          message: "Internal error",
+          code: -32700,
+          message: "Parse error",
           data: error instanceof Error ? error.message : "Unknown error"
         }
-      }, 500);
+      }, 400);
     }
   });
 
@@ -104,7 +175,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
     return c.json({
       jsonrpc: "2.0",
       result: {
-        protocolVersion: "2024-11-05",
+        protocolVersion: "2025-06-18",
         capabilities: {
           tools: {
             listChanged: true
