@@ -23,17 +23,42 @@ export const mcpHandler = (app: OpenAPIHono) => {
   // Handle MCP protocol requests (POST for JSON-RPC)
   app.post("/mcp", async (c) => {
     try {
-      const body = await c.req.json();
+      let body;
+      try {
+        body = await c.req.json();
+      } catch (parseError) {
+        console.error("[MCP] JSON parse error:", parseError);
+        return c.json({
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32700,
+            message: "Parse error",
+            data: parseError instanceof Error ? parseError.message : "Invalid JSON"
+          }
+        }, 400);
+      }
       
       // Log for debugging
       console.log("[MCP] Request:", JSON.stringify(body, null, 2));
       
       // Handle MCP JSON-RPC requests
       if (body.method === "initialize") {
-        // Try to be compatible with both old and new protocol versions
-        const clientVersion = body.params?.protocolVersion || "2024-11-05";
-        const supportedVersions = ["2024-11-05", "2025-06-18"];
-        const protocolVersion = supportedVersions.includes(clientVersion) ? clientVersion : "2024-11-05";
+        // MCP Protocol Version Negotiation
+        // According to spec: servers MAY support multiple protocol versions
+        // but MUST agree on a single version for the session
+        const clientVersion = body.params?.protocolVersion;
+        const supportedVersions = [
+          "2024-11-05",  // Legacy support
+          "2025-03-26",  // n8n version support
+          "2025-06-18"   // Current specification
+        ];
+        
+        // Use the client's version if supported, otherwise use the latest we support
+        let protocolVersion = "2025-06-18"; // Default to latest
+        if (clientVersion && supportedVersions.includes(clientVersion)) {
+          protocolVersion = clientVersion;
+        }
         
         const response = {
           jsonrpc: "2.0",
@@ -41,15 +66,13 @@ export const mcpHandler = (app: OpenAPIHono) => {
           result: {
             protocolVersion,
             capabilities: {
-              tools: {
-                listChanged: true
-              },
+              tools: {},  // Tools capability - empty object means we support tools
               prompts: {},
               resources: {}
             },
             serverInfo: {
               name: "code-runner-mcp",
-              version: "0.1.0"
+              version: "0.2.0"
             }
           }
         };
@@ -69,7 +92,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
             tools: [
               {
                 name: "python-code-runner",
-                description: "Execute Python code with package imports using Pyodide WASM",
+                description: "Execute Python code with package imports using Pyodide WASM. Supports scientific computing libraries like pandas, numpy, matplotlib, etc.",
                 inputSchema: {
                   type: "object",
                   properties: {
@@ -79,15 +102,19 @@ export const mcpHandler = (app: OpenAPIHono) => {
                     },
                     importToPackageMap: {
                       type: "object",
-                      description: "Optional mapping from import names to package names for micropip installation"
+                      additionalProperties: {
+                        type: "string"
+                      },
+                      description: "Optional mapping from import names to package names for micropip installation (e.g., {'sklearn': 'scikit-learn', 'PIL': 'Pillow'})"
                     }
                   },
-                  required: ["code"]
+                  required: ["code"],
+                  additionalProperties: false
                 }
               },
               {
                 name: "javascript-code-runner",
-                description: "Execute JavaScript/TypeScript code using Deno runtime",
+                description: "Execute JavaScript/TypeScript code using Deno runtime. Supports npm packages, JSR packages, and Node.js built-ins.",
                 inputSchema: {
                   type: "object",
                   properties: {
@@ -96,7 +123,8 @@ export const mcpHandler = (app: OpenAPIHono) => {
                       description: "JavaScript/TypeScript source code to execute"
                     }
                   },
-                  required: ["code"]
+                  required: ["code"],
+                  additionalProperties: false
                 }
               }
             ]
@@ -110,19 +138,57 @@ export const mcpHandler = (app: OpenAPIHono) => {
       }
       
       if (body.method === "tools/call") {
+        console.log("[MCP] Tools call request:", JSON.stringify(body.params, null, 2));
+        
+        if (!body.params || !body.params.name) {
+          return c.json({
+            jsonrpc: "2.0",
+            id: body.id,
+            error: {
+              code: -32602,
+              message: "Invalid params - missing tool name"
+            }
+          });
+        }
+        
         const { name, arguments: args } = body.params;
         
         try {
           if (name === "python-code-runner") {
+            if (!args || typeof args.code !== "string") {
+              return c.json({
+                jsonrpc: "2.0",
+                id: body.id,
+                error: {
+                  code: -32602,
+                  message: "Invalid params - code parameter is required and must be a string"
+                }
+              });
+            }
+            
             const options = args.importToPackageMap ? { importToPackageMap: args.importToPackageMap } : undefined;
             const stream = await runPy(args.code, options);
             const decoder = new TextDecoder();
             let output = "";
-            for await (const chunk of stream) {
-              output += decoder.decode(chunk);
+            
+            try {
+              for await (const chunk of stream) {
+                output += decoder.decode(chunk);
+              }
+            } catch (streamError) {
+              console.error("[MCP] Python stream error:", streamError);
+              return c.json({
+                jsonrpc: "2.0",
+                id: body.id,
+                error: {
+                  code: -32603,
+                  message: "Python execution failed",
+                  data: streamError instanceof Error ? streamError.message : "Stream processing error"
+                }
+              });
             }
             
-            return c.json({
+            const response = {
               jsonrpc: "2.0",
               id: body.id,
               result: {
@@ -133,18 +199,46 @@ export const mcpHandler = (app: OpenAPIHono) => {
                   }
                 ]
               }
-            });
+            };
+            
+            console.log("[MCP] Python execution result:", JSON.stringify(response, null, 2));
+            return c.json(response);
           }
           
           if (name === "javascript-code-runner") {
+            if (!args || typeof args.code !== "string") {
+              return c.json({
+                jsonrpc: "2.0",
+                id: body.id,
+                error: {
+                  code: -32602,
+                  message: "Invalid params - code parameter is required and must be a string"
+                }
+              });
+            }
+            
             const stream = await runJS(args.code);
             const decoder = new TextDecoder();
             let output = "";
-            for await (const chunk of stream) {
-              output += decoder.decode(chunk);
+            
+            try {
+              for await (const chunk of stream) {
+                output += decoder.decode(chunk);
+              }
+            } catch (streamError) {
+              console.error("[MCP] JavaScript stream error:", streamError);
+              return c.json({
+                jsonrpc: "2.0",
+                id: body.id,
+                error: {
+                  code: -32603,
+                  message: "JavaScript execution failed",
+                  data: streamError instanceof Error ? streamError.message : "Stream processing error"
+                }
+              });
             }
             
-            return c.json({
+            const response = {
               jsonrpc: "2.0",
               id: body.id,
               result: {
@@ -155,7 +249,10 @@ export const mcpHandler = (app: OpenAPIHono) => {
                   }
                 ]
               }
-            });
+            };
+            
+            console.log("[MCP] JavaScript execution result:", JSON.stringify(response, null, 2));
+            return c.json(response);
           }
           
           // Tool not found
@@ -192,16 +289,24 @@ export const mcpHandler = (app: OpenAPIHono) => {
       });
       
     } catch (error) {
-      console.error("MCP protocol error:", error);
-      return c.json({
-        jsonrpc: "2.0",
-        id: null,
-        error: {
-          code: -32700,
-          message: "Parse error",
-          data: error instanceof Error ? error.message : "Unknown error"
-        }
-      }, 400);
+      console.error("[MCP] Unhandled protocol error:", error);
+      console.error("[MCP] Stack trace:", error instanceof Error ? error.stack : "No stack trace");
+      
+      // Try to return a proper JSON-RPC error response
+      try {
+        return c.json({
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32603,
+            message: "Internal error",
+            data: error instanceof Error ? error.message : "Unknown error"
+          }
+        }, 500);
+      } catch (responseError) {
+        console.error("[MCP] Failed to send error response:", responseError);
+        return c.text("Internal Server Error", 500);
+      }
     }
   });
 
