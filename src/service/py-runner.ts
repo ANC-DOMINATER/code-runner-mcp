@@ -59,11 +59,21 @@ export async function runPy(
 
   // Set up file system if options provided
   if (options) {
-    setupPyodideFileSystem(pyodide, options);
+    try {
+      setupPyodideFileSystem(pyodide, options);
+    } catch (fsError) {
+      console.error("[py] File system setup error:", fsError);
+      // Continue execution even if FS setup fails
+    }
   }
 
-  // Load packages
-  await loadDeps(code, options?.importToPackageMap);
+  // Load packages with better error handling
+  try {
+    await loadDeps(code, options?.importToPackageMap);
+  } catch (depError) {
+    console.error("[py] Dependency loading error:", depError);
+    // Continue execution - some packages might still work
+  }
 
   // Interrupt buffer to be set when aborting
   const interruptBuffer = new Int32Array(
@@ -163,7 +173,22 @@ export async function runPy(
           // If an abort happened before execution – don't run
           if (signal?.aborted) return;
 
+          // Validate code before execution
+          if (!code || typeof code !== 'string') {
+            throw new Error("Invalid code: must be a non-empty string");
+          }
+
+          // Clean up any existing state
+          try {
+            pyodide.runPython("import sys; sys.stdout.flush(); sys.stderr.flush()");
+          } catch (cleanupError) {
+            console.warn("[py] Cleanup warning:", cleanupError);
+          }
+
+          console.log("[py] Executing code:", code.substring(0, 100) + (code.length > 100 ? "..." : ""));
+          
           await pyodide.runPythonAsync(code);
+          
           clearTimeout(timeout);
           if (!streamClosed) {
             controller.close();
@@ -173,8 +198,16 @@ export async function runPy(
             pyodide.setStderr({});
           }
         } catch (err) {
+          console.error("[py] Execution error:", err);
           clearTimeout(timeout);
           if (!streamClosed) {
+            // Try to send error info to the stream before closing
+            try {
+              const errorMessage = err instanceof Error ? err.message : String(err);
+              controller.enqueue(encoder.encode(`[ERROR] ${errorMessage}\n`));
+            } catch (streamError) {
+              console.error("[py] Error sending error message:", streamError);
+            }
             controller.error(err);
             streamClosed = true;
             // Clear handlers to prevent further writes

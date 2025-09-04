@@ -166,14 +166,49 @@ export const mcpHandler = (app: OpenAPIHono) => {
               });
             }
             
+            // Validate code length to prevent excessive execution
+            if (args.code.length > 50000) {
+              return c.json({
+                jsonrpc: "2.0",
+                id: body.id,
+                error: {
+                  code: -32602,
+                  message: "Code too long - maximum 50,000 characters allowed"
+                }
+              });
+            }
+            
+            console.log("[MCP] Executing Python code:", args.code.substring(0, 200) + (args.code.length > 200 ? "..." : ""));
+            
             const options = args.importToPackageMap ? { importToPackageMap: args.importToPackageMap } : undefined;
-            const stream = await runPy(args.code, options);
+            
+            let stream;
+            try {
+              stream = await runPy(args.code, options);
+            } catch (initError) {
+              console.error("[MCP] Python initialization error:", initError);
+              return c.json({
+                jsonrpc: "2.0",
+                id: body.id,
+                error: {
+                  code: -32603,
+                  message: "Python initialization failed",
+                  data: initError instanceof Error ? initError.message : "Unknown initialization error"
+                }
+              });
+            }
+            
             const decoder = new TextDecoder();
             let output = "";
             
             try {
               for await (const chunk of stream) {
                 output += decoder.decode(chunk);
+                // Prevent excessive output
+                if (output.length > 100000) {
+                  output += "\n[OUTPUT TRUNCATED - Maximum 100KB limit reached]";
+                  break;
+                }
               }
             } catch (streamError) {
               console.error("[MCP] Python stream error:", streamError);
@@ -201,7 +236,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
               }
             };
             
-            console.log("[MCP] Python execution result:", JSON.stringify(response, null, 2));
+            console.log("[MCP] Python execution completed, output length:", output.length);
             return c.json(response);
           }
           
