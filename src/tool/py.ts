@@ -15,56 +15,28 @@ export const getPyodide = async (): Promise<PyodideInterface> => {
     initializationAttempted = true;
     
     console.log("[py] Starting Pyodide initialization...");
+    console.log("[py] Pyodide version:", pyodideVersion);
     
-    // Support custom package download source (e.g., using private mirror)
-    // Can be specified via environment variable PYODIDE_PACKAGE_BASE_URL
-    const customPackageBaseUrl = process.env.PYODIDE_PACKAGE_BASE_URL;
+    // Use the default CDN that should work reliably
+    // The issue might be with custom packageBaseUrl configuration
+    console.log("[py] Using default Pyodide CDN configuration");
     
-    // Try multiple CDNs for better reliability
-    const cdnUrls = [
-      customPackageBaseUrl ? `${customPackageBaseUrl.replace(/\/$/, "")}/` : null,
-      `https://fastly.jsdelivr.net/pyodide/v${pyodideVersion}/full/`,
-      `https://cdn.jsdelivr.net/pyodide/v${pyodideVersion}/full/`,
-      `https://unpkg.com/pyodide@${pyodideVersion}/`
-    ].filter(Boolean);
-
-    let lastError: Error | null = null;
-    
-    for (const packageBaseUrl of cdnUrls) {
-      try {
-        console.log("[py] Trying Pyodide package base URL:", packageBaseUrl);
-        
-        const pyodidePromise = loadPyodide({
-          // TODO: will be supported when v0.28.1 is released: https://github.com/pyodide/pyodide/commit/7be415bd4e428dc8e36d33cfc1ce2d1de10111c4
-          // @ts-ignore: Pyodide types may not include all configuration options
-          packageBaseUrl,
-          stdout: (msg: string) => console.log("[pyodide stdout]", msg),
-          stderr: (msg: string) => console.warn("[pyodide stderr]", msg),
-        });
-        
-        // Add timeout for initialization to prevent hanging
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error("Pyodide initialization timeout (60 seconds)"));
-          }, 60000);
-        });
-        
-        pyodideInstance = Promise.race([pyodidePromise, timeoutPromise]);
-        const pyodide = await pyodideInstance;
-        console.log("[py] Pyodide initialized successfully with URL:", packageBaseUrl);
-        return pyodide;
-        
-      } catch (error) {
-        console.warn("[py] Failed with URL", packageBaseUrl, ":", error);
-        lastError = error instanceof Error ? error : new Error(String(error));
-        pyodideInstance = null;
-        continue;
-      }
+    try {
+      pyodideInstance = loadPyodide({
+        stdout: (msg: string) => console.log("[pyodide stdout]", msg),
+        stderr: (msg: string) => console.warn("[pyodide stderr]", msg),
+      });
+      
+      const pyodide = await pyodideInstance;
+      console.log("[py] Pyodide initialized successfully");
+      return pyodide;
+      
+    } catch (error) {
+      console.error("[py] Pyodide initialization failed:", error);
+      pyodideInstance = null;
+      initializationAttempted = false;
+      throw new Error(`Pyodide initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    
-    // If we get here, all CDNs failed
-    initializationAttempted = false;
-    throw new Error(`All Pyodide CDNs failed. Last error: ${lastError?.message || 'Unknown error'}`);
     
   } else if (pyodideInstance) {
     return pyodideInstance;
@@ -79,35 +51,18 @@ export const getPip = async () => {
   try {
     console.log("[py] Loading micropip package...");
     
-    // First try to load micropip with timeout protection
-    const loadTimeout = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error("Micropip loading timeout (30 seconds)"));
-      }, 30000);
-    });
-    
-    const loadMicropip = pyodide.loadPackage("micropip", { 
+    // Load micropip package - this should work with our improved CDN fallbacks
+    await pyodide.loadPackage("micropip", { 
       messageCallback: () => {}
-      // Reduce verbosity to avoid log spam
     });
     
-    await Promise.race([loadMicropip, loadTimeout]);
-    
-    // Then import it with timeout
-    const importTimeout = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error("Micropip import timeout (10 seconds)"));
-      }, 10000);
-    });
-    
-    const importMicropip = Promise.resolve(pyodide.pyimport("micropip"));
-    const micropip = await Promise.race([importMicropip, importTimeout]);
-    
+    // Import micropip
+    const micropip = pyodide.pyimport("micropip");
     console.log("[py] Micropip loaded successfully");
     return micropip;
+    
   } catch (error) {
     console.error("[py] Failed to load micropip:", error);
-    console.warn("[py] Package installation will be skipped - some imports may fail");
     throw new Error(`Micropip initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
