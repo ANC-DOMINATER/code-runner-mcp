@@ -42,6 +42,10 @@ export const mcpHandler = (app: OpenAPIHono) => {
     c.header("Content-Type", "application/json");
     c.header("Transfer-Encoding", "chunked");
     
+    // Add additional n8n compatibility headers
+    c.header("X-MCP-Compatible", "true");
+    c.header("X-Protocol-Versions", CONFIG.MCP.SUPPORTED_VERSIONS.join(","));
+    
     try {
       let body;
       try {
@@ -54,6 +58,14 @@ export const mcpHandler = (app: OpenAPIHono) => {
             parseError instanceof Error ? parseError.message : "Invalid JSON"),
           400
         );
+      }
+      
+      // Special handling for n8n and other clients that might not send proper JSON-RPC structure
+      if (!body.jsonrpc) {
+        body.jsonrpc = CONFIG.MCP.JSON_RPC_VERSION;
+      }
+      if (!body.id && body.id !== 0) {
+        body.id = requestId;
       }
       
       // Handle MCP JSON-RPC requests
@@ -137,11 +149,24 @@ export const mcpHandler = (app: OpenAPIHono) => {
           );
         }
         
-        const { name, arguments: args } = body.params;
+        // Handle hybrid parameter formats for n8n compatibility
+        // n8n and some older clients might send parameters differently
+        const toolName = body.params.name;
+        let toolArgs = body.params.arguments || body.params.params || body.params.args;
+        
+        // If no arguments found, try looking for direct parameters on the body.params object
+        if (!toolArgs) {
+          const { name, method, ...otherParams } = body.params;
+          if (Object.keys(otherParams).length > 0) {
+            toolArgs = otherParams;
+          }
+        }
+        
+        logger.info(`Tool: ${toolName}, Args:`, JSON.stringify(toolArgs, null, 2));
         
         try {
-          if (name === "python-code-runner") {
-            if (!args || typeof args.code !== "string") {
+          if (toolName === "python-code-runner") {
+            if (!toolArgs || typeof toolArgs.code !== "string") {
               return c.json(
                 createErrorResponse(body.id, CONFIG.MCP.ERROR_CODES.INVALID_PARAMS, 
                   "Invalid params - code parameter is required and must be a string")
@@ -149,21 +174,21 @@ export const mcpHandler = (app: OpenAPIHono) => {
             }
             
             // Validate code length to prevent excessive execution
-            if (args.code.length > CONFIG.LIMITS.MAX_CODE_LENGTH) {
+            if (toolArgs.code.length > CONFIG.LIMITS.MAX_CODE_LENGTH) {
               return c.json(
                 createErrorResponse(body.id, CONFIG.MCP.ERROR_CODES.INVALID_PARAMS,
                   `Code too long - maximum ${CONFIG.LIMITS.MAX_CODE_LENGTH} characters allowed`)
               );
             }
             
-            logger.info("Executing Python code:", args.code.substring(0, 200) + (args.code.length > 200 ? "..." : ""));
+            logger.info("Executing Python code:", toolArgs.code.substring(0, 200) + (toolArgs.code.length > 200 ? "..." : ""));
             
-            const options = args.importToPackageMap ? { importToPackageMap: args.importToPackageMap } : undefined;
+            const options = toolArgs.importToPackageMap ? { importToPackageMap: toolArgs.importToPackageMap } : undefined;
             
             let stream;
             try {
               // Add timeout protection for the entire Python execution
-              const executionPromise = runPy(args.code, options);
+              const executionPromise = runPy(toolArgs.code, options);
               const timeoutPromise = new Promise<never>((_, reject) => {
                 setTimeout(() => {
                   reject(new Error("Python execution timeout"));
@@ -212,8 +237,8 @@ export const mcpHandler = (app: OpenAPIHono) => {
             return c.json(response);
           }
           
-          if (name === "javascript-code-runner") {
-            if (!args || typeof args.code !== "string") {
+          if (toolName === "javascript-code-runner") {
+            if (!toolArgs || typeof toolArgs.code !== "string") {
               return c.json(
                 createErrorResponse(body.id, CONFIG.MCP.ERROR_CODES.INVALID_PARAMS,
                   "Invalid params - code parameter is required and must be a string")
@@ -221,14 +246,14 @@ export const mcpHandler = (app: OpenAPIHono) => {
             }
             
             // Validate code length
-            if (args.code.length > CONFIG.LIMITS.MAX_CODE_LENGTH) {
+            if (toolArgs.code.length > CONFIG.LIMITS.MAX_CODE_LENGTH) {
               return c.json(
                 createErrorResponse(body.id, CONFIG.MCP.ERROR_CODES.INVALID_PARAMS,
                   `Code too long - maximum ${CONFIG.LIMITS.MAX_CODE_LENGTH} characters allowed`)
               );
             }
             
-            const stream = await runJS(args.code);
+            const stream = await runJS(toolArgs.code);
             const decoder = new TextDecoder();
             let output = "";
             
@@ -263,7 +288,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
           
           // Tool not found
           return c.json(
-            createErrorResponse(body.id, CONFIG.MCP.ERROR_CODES.METHOD_NOT_FOUND, `Tool '${name}' not found`)
+            createErrorResponse(body.id, CONFIG.MCP.ERROR_CODES.METHOD_NOT_FOUND, `Tool '${toolName}' not found`)
           );
           
         } catch (error) {
@@ -305,6 +330,89 @@ export const mcpHandler = (app: OpenAPIHono) => {
         serverInfo: createServerInfo()
       }
     });
+  });
+
+  // Debug endpoint to see what n8n is actually sending
+  app.post("/mcp/debug", async (c: any) => {
+    const method = c.req.method;
+    const headers: Record<string, string> = {};
+    for (const [key, value] of c.req.headers.entries()) {
+      headers[key] = value;
+    }
+    
+    let body = null;
+    try {
+      body = await c.req.json();
+    } catch (e) {
+      body = "Failed to parse JSON: " + (e instanceof Error ? e.message : String(e));
+    }
+    
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      method: method,
+      url: c.req.url,
+      headers: headers,
+      body: body,
+      query: c.req.query
+    };
+    
+    logger.info("Debug request:", JSON.stringify(debugInfo, null, 2));
+    
+    return c.json({
+      message: "Debug info logged",
+      debug: debugInfo
+    });
+  });
+
+  app.get("/mcp/debug", async (c: any) => {
+    return c.json({
+      message: "Debug endpoint active",
+      availableEndpoints: [
+        "GET /mcp - Server info",
+        "POST /mcp - Main MCP protocol",
+        "POST /mcp/debug - Debug requests",
+        "POST /mcp/tools/call - Direct tool calls"
+      ]
+    });
+  });
+
+  // Additional n8n compatibility endpoint - some clients expect tools to be callable directly
+  app.post("/mcp/tools/call", async (c: any) => {
+    logger.info("Direct tools/call endpoint accessed (n8n compatibility)");
+    
+    try {
+      const body = await c.req.json();
+      
+      // Transform direct call to MCP format
+      const mcpRequest = {
+        jsonrpc: CONFIG.MCP.JSON_RPC_VERSION,
+        id: Math.random().toString(36).substring(7),
+        method: "tools/call",
+        params: body
+      };
+      
+      // Forward to main MCP handler by creating a new request
+      const response = await fetch(c.req.url.replace('/tools/call', ''), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mcpRequest)
+      });
+      
+      const result = await response.json();
+      
+      // Return just the result for direct calls
+      if (result.result) {
+        return c.json(result.result);
+      } else {
+        return c.json(result, response.status);
+      }
+    } catch (error) {
+      logger.error("Direct tools/call error:", error);
+      return c.json({
+        error: "Direct tool call failed",
+        message: error instanceof Error ? error.message : "Unknown error"
+      }, 500);
+    }
   });
 };
 

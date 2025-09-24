@@ -37,6 +37,12 @@ export const CONFIG = {
       INVALID_PARAMS: -32602,
       INTERNAL_ERROR: -32603,
       TIMEOUT: -32001
+    },
+    // Hybrid compatibility settings
+    COMPATIBILITY: {
+      ACCEPT_LEGACY_PARAMS: true,    // Accept both 'arguments' and 'params' fields
+      FLEXIBLE_ERROR_FORMAT: true,   // Support different error response formats
+      LEGACY_CONTENT_FORMAT: true    // Support older content response formats
     }
   },
 

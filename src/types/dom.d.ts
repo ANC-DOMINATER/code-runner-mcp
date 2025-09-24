@@ -6,12 +6,24 @@ declare global {
     [index: number]: File;
   }
   
+  interface HTMLElement {
+    // Basic HTMLElement interface
+  }
+  
+  interface CanvasRenderingContext2D {
+    // Basic 2D context interface
+  }
+  
+  interface WebGLRenderingContext {
+    // Basic WebGL context interface
+  }
+  
   interface HTMLCanvasElement extends HTMLElement {
     width: number;
     height: number;
     getContext(contextId: "2d"): CanvasRenderingContext2D | null;
     getContext(contextId: "webgl" | "experimental-webgl"): WebGLRenderingContext | null;
-    getContext(contextId: string): RenderingContext | null;
+    getContext(contextId: string): CanvasRenderingContext2D | WebGLRenderingContext | null;
   }
   
   interface FileSystemDirectoryHandle {
