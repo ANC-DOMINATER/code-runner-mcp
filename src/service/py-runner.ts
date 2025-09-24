@@ -82,7 +82,7 @@ export async function runPy(
   }
 
   // Initialize Pyodide with timeout protection
-  let pyodide: typeof PyodideInterface;
+  let pyodide: any; // Use any type to avoid PyodideInterface type issues
   try {
     console.log("[py] Ensuring Pyodide is initialized...");
     

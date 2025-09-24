@@ -1,3 +1,4 @@
+/// <reference path="./types/dom.d.ts" />
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { createApp } from "./app.ts";
 import process from "node:process";

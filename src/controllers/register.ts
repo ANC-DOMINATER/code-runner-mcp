@@ -1,5 +1,5 @@
 import type { OpenAPIHono } from "@hono/zod-openapi";
-import type { Context } from "@hono/zod-openapi";
+// Remove Context import since it's not properly exported
 import { messageHandler } from "./messages.controller.ts";
 import { mcpHandler, sseHandler } from "./mcp.controller.ts";
 import { server } from "../app.ts";
