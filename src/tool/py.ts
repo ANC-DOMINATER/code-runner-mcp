@@ -1,11 +1,13 @@
-/// <reference path="../types/deno.d.ts" />
+/// <reference path="../types/pyodide.d.ts" />
+/// <reference path="../types/dom.d.ts" />
 
 import {
   loadPyodide,
   version as pyodideVersion,
   type PyodideInterface,
 } from "pyodide";
-import process from "node:process";
+// Use Deno's process instead of Node.js process to avoid type conflicts
+// import process from "node:process";
 
 let pyodideInstance: Promise<PyodideInterface> | null = null;
 let initializationAttempted = false;

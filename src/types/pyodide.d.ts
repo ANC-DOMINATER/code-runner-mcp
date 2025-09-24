@@ -1,22 +1,4 @@
-// Deno-specific type declarations
-
-// Fix for import.meta.main
-declare namespace ImportMeta {
-  var main: boolean;
-}
-
-// Fix for node: imports in Deno
-declare module "node:process" {
-  const process: {
-    env: Record<string, string | undefined>;
-    exit(code?: number): never;
-    argv: string[];
-    cwd(): string;
-  };
-  export default process;
-}
-
-// Pyodide type declarations
+// Pyodide type declarations for Python 3.12 compatibility
 declare module "pyodide" {
   export interface PyodideInterface {
     loadPackage(packages: string | string[], options?: { messageCallback?: () => void }): Promise<void>;
@@ -40,3 +22,5 @@ declare module "pyodide" {
 
   export const version: string;
 }
+
+export {};

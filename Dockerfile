@@ -15,15 +15,15 @@ RUN mkdir -p /deno-cache && chmod 755 /deno-cache
 # Copy dependency files first for better caching
 COPY deno.json deno.lock ./
 
-# Cache dependencies, skip type checking to avoid DOM type issues
-RUN deno cache --no-check src/server.ts || echo "Cache attempt completed"
+# Cache dependencies
+RUN deno cache --check=all src/server.ts || echo "Cache attempt completed"
 
 # Copy your local source code
 COPY . .
 
-# Cache the main server file and dependencies with retries, skip type checking
-RUN deno cache --no-check src/server.ts || \
-    (sleep 5 && deno cache --no-check src/server.ts) || \
+# Cache the main server file and dependencies with retries
+RUN deno cache --check=all src/server.ts || \
+    (sleep 5 && deno cache --check=all src/server.ts) || \
     echo "Final cache attempt completed"
 
 # Expose port

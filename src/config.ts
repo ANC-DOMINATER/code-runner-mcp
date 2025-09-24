@@ -1,4 +1,4 @@
-/// <reference path="./types/deno.d.ts" />
+/// <reference path="./types/dom.d.ts" />
 
 // Production configuration constants
 export const CONFIG = {

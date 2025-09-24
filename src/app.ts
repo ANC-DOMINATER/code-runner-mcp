@@ -1,3 +1,5 @@
+/// <reference path="./types/dom.d.ts" />
+
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { registerAgent } from "./controllers/register.ts";
 import { setUpMcpServer } from "./set-up-mcp.ts";

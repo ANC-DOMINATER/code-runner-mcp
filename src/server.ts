@@ -1,17 +1,17 @@
 /// <reference path="./types/dom.d.ts" />
-/// <reference path="./types/deno.d.ts" />
+/// <reference path="./types/dom.d.ts" />
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { createApp } from "./app.ts";
-import process from "node:process";
+// import process from "node:process"; // Use Deno.env instead
 
 // Declare Deno global for TypeScript
 declare const Deno: any;
 
-const port = Number(process.env.PORT || 9000);
+const port = Number(Deno.env.get("PORT") || "9000");
 const hostname = "0.0.0.0";
 
 console.log(`[server] Starting Code Runner MCP Server...`);
-console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`[server] Environment: ${Deno.env.get("NODE_ENV") || 'development'}`);
 console.log(`[server] Port: ${port}`);
 console.log(`[server] Hostname: ${hostname}`);
 
@@ -51,7 +51,7 @@ app.get("/", (c: any) => {
     debug: {
       port: port,
       hostname: hostname,
-      env: process.env.NODE_ENV || 'development'
+      env: Deno.env.get("NODE_ENV") || 'development'
     }
   });
 });
@@ -88,5 +88,5 @@ try {
   console.log(`[server] 🚀 MCP endpoint: http://${hostname}:${port}/mcp`);
 } catch (error) {
   console.error("[server] ❌ Failed to start server:", error);
-  process.exit(1);
+  Deno.exit(1);
 }

@@ -1,5 +1,5 @@
 /// <reference path="../types/hono.d.ts" />
-/// <reference path="../types/deno.d.ts" />
+/// <reference path="../types/dom.d.ts" />
 
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import { CONFIG, createLogger } from "../config.ts";

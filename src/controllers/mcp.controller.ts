@@ -1,5 +1,5 @@
 /// <reference path="../types/hono.d.ts" />
-/// <reference path="../types/deno.d.ts" />
+/// <reference path="../types/dom.d.ts" />
 
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import { runJS } from "../service/js-runner.ts";
@@ -224,13 +224,20 @@ export const mcpHandler = (app: OpenAPIHono) => {
             let output = "";
             
             try {
-              for await (const chunk of stream) {
-                output += decoder.decode(chunk);
-                // Prevent excessive output
-                if (output.length > CONFIG.LIMITS.MAX_OUTPUT_LENGTH) {
-                  output += `\n[OUTPUT TRUNCATED - Maximum ${CONFIG.LIMITS.MAX_OUTPUT_LENGTH / 1000}KB limit reached]`;
-                  break;
+              const reader = stream.getReader();
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  output += decoder.decode(value);
+                  // Prevent excessive output
+                  if (output.length > CONFIG.LIMITS.MAX_OUTPUT_LENGTH) {
+                    output += `\n[OUTPUT TRUNCATED - Maximum ${CONFIG.LIMITS.MAX_OUTPUT_LENGTH / 1000}KB limit reached]`;
+                    break;
+                  }
                 }
+              } finally {
+                reader.releaseLock();
               }
             } catch (streamError) {
               logger.error("Python stream error:", streamError);
@@ -289,12 +296,19 @@ export const mcpHandler = (app: OpenAPIHono) => {
             let output = "";
             
             try {
-              for await (const chunk of stream) {
-                output += decoder.decode(chunk);
-                if (output.length > CONFIG.LIMITS.MAX_OUTPUT_LENGTH) {
-                  output += `\n[OUTPUT TRUNCATED - Maximum ${CONFIG.LIMITS.MAX_OUTPUT_LENGTH / 1000}KB limit reached]`;
-                  break;
+              const reader = stream.getReader();
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  output += decoder.decode(value);
+                  if (output.length > CONFIG.LIMITS.MAX_OUTPUT_LENGTH) {
+                    output += `\n[OUTPUT TRUNCATED - Maximum ${CONFIG.LIMITS.MAX_OUTPUT_LENGTH / 1000}KB limit reached]`;
+                    break;
+                  }
                 }
+              } finally {
+                reader.releaseLock();
               }
             } catch (streamError) {
               logger.error("JavaScript stream error:", streamError);
