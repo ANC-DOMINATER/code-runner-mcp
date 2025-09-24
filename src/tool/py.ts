@@ -1,3 +1,5 @@
+/// <reference path="../types/deno.d.ts" />
+
 import {
   loadPyodide,
   version as pyodideVersion,

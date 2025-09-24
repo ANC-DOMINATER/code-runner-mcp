@@ -1,3 +1,5 @@
+/// <reference path="../types/deno.d.ts" />
+
 import type { PyodideInterface } from "pyodide";
 import { getPyodide, getPip, loadDeps, makeStream } from "../tool/py.ts";
 

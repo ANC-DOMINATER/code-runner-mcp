@@ -1,8 +1,11 @@
 #!/usr/bin/env -S deno run --allow-net
+/// <reference path="../src/types/deno.d.ts" />
 
 /**
  * Quick test script to validate the MCP server is working
  */
+
+export {}; // Make this file a module
 
 const SERVER_URL = "http://localhost:9000";
 
@@ -130,6 +133,7 @@ async function main() {
   }
 }
 
-if (import.meta.main) {
+// Run the main function if this script is executed directly
+if ((import.meta as any).main) {
   await main();
 }
