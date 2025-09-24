@@ -6,6 +6,7 @@ import {
   version as pyodideVersion,
   type PyodideInterface,
 } from "pyodide";
+import { CONFIG } from "../config.ts";
 // Use Deno's process instead of Node.js process to avoid type conflicts
 // import process from "node:process";
 
@@ -201,7 +202,7 @@ result`;
             messageCallback: () => {}
           });
           const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error("Pyodide package loading timeout")), 60000);
+            setTimeout(() => reject(new Error("Pyodide package loading timeout")), CONFIG.TIMEOUTS.PACKAGE_LOADING);
           });
           
           await Promise.race([loadPromise, timeoutPromise]);
@@ -241,7 +242,7 @@ result`;
             // Add timeout for package installation
             const installPromise = pip.install(uniquePackages);
             const timeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error("Package installation timeout")), 60000);
+              setTimeout(() => reject(new Error("Package installation timeout")), CONFIG.TIMEOUTS.PACKAGE_LOADING);
             });
             
             await Promise.race([installPromise, timeoutPromise]);
@@ -260,7 +261,7 @@ result`;
               try {
                 const singleInstallPromise = pip.install(pkg);
                 const singleTimeoutPromise = new Promise((_, reject) => {
-                  setTimeout(() => reject(new Error(`Installation timeout for ${pkg}`)), 30000);
+                  setTimeout(() => reject(new Error(`Installation timeout for ${pkg}`)), CONFIG.TIMEOUTS.SINGLE_PACKAGE);
                 });
                 
                 await Promise.race([singleInstallPromise, singleTimeoutPromise]);

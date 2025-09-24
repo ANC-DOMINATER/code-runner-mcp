@@ -4,6 +4,7 @@ import type { OpenAPIHono } from "@hono/zod-openapi";
 import { messageHandler } from "./messages.controller.ts";
 import { mcpHandler, sseHandler } from "./mcp.controller.ts";
 import { CONFIG, createLogger, createErrorResponse } from "../config.ts";
+import { getWarmupStatus } from "../service/warmup.ts";
 
 const logger = createLogger("register");
 const startTime = Date.now();
@@ -14,9 +15,11 @@ export const registerAgent = (app: OpenAPIHono) => {
   mcpHandler(app); // Primary: MCP JSON-RPC at /mcp
   sseHandler(app); // Deprecated: SSE redirect for backward compatibility
   
-  // Production-ready health check endpoint
+  // Production-ready health check endpoint with warmup status
   app.get("/health", async (c: any) => {
     try {
+      const warmupStatus = getWarmupStatus();
+      
       const health = {
         status: "healthy",
         timestamp: new Date().toISOString(),
@@ -27,7 +30,11 @@ export const registerAgent = (app: OpenAPIHono) => {
         components: {
           server: "healthy",
           javascript: "healthy", 
-          python: "initializing"
+          python: warmupStatus.completed ? "healthy" : warmupStatus.inProgress ? "initializing" : "initializing"
+        },
+        warmup: {
+          completed: warmupStatus.completed,
+          inProgress: warmupStatus.inProgress
         }
       };
 
@@ -41,27 +48,19 @@ export const registerAgent = (app: OpenAPIHono) => {
         health.status = "degraded";
       }
 
-      // Blocking Python status check with timeout
-      try {
-        const { initializePyodide } = await import("../service/py-runner.ts");
-        await Promise.race([
-          initializePyodide(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), CONFIG.TIMEOUTS.HEALTH_CHECK))
-        ]);
+      // If warmup is complete, Python should be ready
+      if (warmupStatus.completed) {
         health.components.python = "healthy";
-      } catch (pyError) {
-        // Check if Pyodide is actually working by testing a simple operation
+      } else {
+        // Quick Python status check without blocking
         try {
           const { getPyodide } = await import("../tool/py.ts");
           const pyodide = await Promise.race([
             getPyodide(),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000))
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 2000))
           ]);
-          // If we can get Pyodide instance, it's healthy
           if (pyodide) {
             health.components.python = "healthy";
-          } else {
-            health.components.python = "initializing";
           }
         } catch {
           health.components.python = "initializing";

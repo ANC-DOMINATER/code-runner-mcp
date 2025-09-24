@@ -1,10 +1,10 @@
 FROM denoland/deno:latest
 
-# Set environment variables for better performance
+# Set environment variables for better performance with Python 3.12
 ENV DENO_DIR=/deno-cache
 ENV DENO_INSTALL_ROOT=/usr/local
 ENV NODE_ENV=production
-ENV PYODIDE_PACKAGE_BASE_URL=https://fastly.jsdelivr.net/pyodide/v0.28.0/full/
+ENV PYODIDE_PACKAGE_BASE_URL=https://cdn.jsdelivr.net/pyodide/v0.26.2/full/
 
 # Create working directory
 WORKDIR /app
@@ -13,9 +13,9 @@ WORKDIR /app
 RUN mkdir -p /deno-cache && chmod 755 /deno-cache
 
 # Copy dependency files first for better caching
-COPY deno.json deno.lock ./
+COPY deno.json ./
 
-# Cache dependencies
+# Cache dependencies with Python 3.12 compatible versions
 RUN deno cache --check=all src/server.ts || echo "Cache attempt completed"
 
 # Copy your local source code
@@ -29,8 +29,8 @@ RUN deno cache --check=all src/server.ts || \
 # Expose port
 EXPOSE 9000
 
-# Add health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+# Add health check with longer timeout for cloud deployment
+HEALTHCHECK --interval=45s --timeout=30s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:9000/health || exit 1
 
 # Run the local server file directly with all checks disabled

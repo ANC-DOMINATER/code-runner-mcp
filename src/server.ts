@@ -2,6 +2,7 @@
 /// <reference path="./types/dom.d.ts" />
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { createApp } from "./app.ts";
+import { warmupPython } from "./service/warmup.ts";
 // import process from "node:process"; // Use Deno.env instead
 
 // Declare Deno global for TypeScript
@@ -14,6 +15,12 @@ console.log(`[server] Starting Code Runner MCP Server...`);
 console.log(`[server] Environment: ${Deno.env.get("NODE_ENV") || 'development'}`);
 console.log(`[server] Port: ${port}`);
 console.log(`[server] Hostname: ${hostname}`);
+
+// Start Python warmup in background (don't wait for it)
+console.log(`[server] Starting Python environment warmup...`);
+warmupPython().catch(error => {
+  console.warn("[server] Python warmup failed, but server will continue:", error);
+});
 
 const app = new OpenAPIHono();
 

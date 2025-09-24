@@ -11,12 +11,14 @@ export const CONFIG = {
     DEFAULT_HOSTNAME: "0.0.0.0"
   },
 
-  // Execution timeouts (in milliseconds)
+  // Execution timeouts (in milliseconds) - optimized for cloud deployment
   TIMEOUTS: {
-    PYTHON_INIT: 60000,       // 1 minute
-    PYTHON_EXECUTION: 240000, // 4 minutes
-    JAVASCRIPT_EXECUTION: 60000, // 1 minute
-    HEALTH_CHECK: 3000        // 3 seconds
+    PYTHON_INIT: 30000,       // 30 seconds (cloud-optimized)
+    PYTHON_EXECUTION: 90000,  // 1.5 minutes (reduced for n8n compatibility)
+    JAVASCRIPT_EXECUTION: 30000, // 30 seconds
+    HEALTH_CHECK: 5000,       // 5 seconds
+    PACKAGE_LOADING: 45000,   // 45 seconds max for package loading
+    SINGLE_PACKAGE: 20000     // 20 seconds per individual package
   },
 
   // Output limits
