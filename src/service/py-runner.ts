@@ -127,17 +127,25 @@ export async function runPy(
     }
   }
 
-  // Load packages with better error handling
+  // DISABLED: Load packages with better error handling
+  // Automatic package loading can cause server crashes in production
+  // Users can still manually install packages in their code using micropip
   let dependencyLoadingFailed = false;
   let dependencyError: Error | null = null;
   
-  try {
-    await loadDeps(code, options?.importToPackageMap);
-  } catch (depError) {
-    console.error("[py] Dependency loading error:", depError);
-    dependencyLoadingFailed = true;
-    dependencyError = depError instanceof Error ? depError : new Error('Unknown dependency error');
-    // Continue execution - some packages might still work
+  if (options?.importToPackageMap && Object.keys(options.importToPackageMap).length > 0) {
+    // Only attempt package loading if explicitly requested via importToPackageMap
+    try {
+      console.log("[py] Explicit package installation requested via importToPackageMap");
+      await loadDeps(code, options.importToPackageMap);
+    } catch (depError) {
+      console.error("[py] Explicit dependency loading error:", depError);
+      dependencyLoadingFailed = true;
+      dependencyError = depError instanceof Error ? depError : new Error('Unknown dependency error');
+      // Continue execution - some packages might still work
+    }
+  } else {
+    console.log("[py] Automatic package loading disabled for production stability");
   }
 
   // Interrupt buffer to be set when aborting
