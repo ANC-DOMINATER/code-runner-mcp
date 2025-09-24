@@ -5,7 +5,25 @@ import process from "node:process";
 const port = Number(process.env.PORT || 9000);
 const hostname = "0.0.0.0";
 
+console.log(`[server] Starting Code Runner MCP Server...`);
+console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`[server] Port: ${port}`);
+console.log(`[server] Hostname: ${hostname}`);
+
 const app = new OpenAPIHono();
+
+// Add request logging middleware
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  const { method, url } = c.req;
+  
+  await next();
+  
+  const elapsed = Date.now() - start;
+  const { status } = c.res;
+  
+  console.log(`[${new Date().toISOString()}] ${method} ${url} - ${status} (${elapsed}ms)`);
+});
 
 // Mount routes at root path instead of /code-runner
 app.route("/", createApp());
@@ -21,14 +39,42 @@ app.get("/", (c) => {
       health: "/health",
       messages: "/messages",
       tools: "/tools"
-    }
+    },
+    timestamp: new Date().toISOString()
   });
 });
 
-Deno.serve(
-  {
-    port,
-    hostname,
-  },
-  app.fetch
-);
+// Global error handler
+app.onError((err, c) => {
+  console.error(`[server] Error: ${err.message}`);
+  console.error(`[server] Stack: ${err.stack}`);
+  
+  return c.json({
+    error: "Internal Server Error",
+    message: err.message,
+    timestamp: new Date().toISOString()
+  }, 500);
+});
+
+console.log(`[server] Starting Deno server on ${hostname}:${port}...`);
+
+try {
+  Deno.serve(
+    {
+      port,
+      hostname,
+      onError: (error) => {
+        console.error("[server] Server error:", error);
+        return new Response("Internal Server Error", { status: 500 });
+      },
+    },
+    app.fetch
+  );
+  
+  console.log(`[server] ✅ Server started successfully on ${hostname}:${port}`);
+  console.log(`[server] 🔗 Health check: http://${hostname}:${port}/health`);
+  console.log(`[server] 🚀 MCP endpoint: http://${hostname}:${port}/mcp`);
+} catch (error) {
+  console.error("[server] ❌ Failed to start server:", error);
+  process.exit(1);
+}

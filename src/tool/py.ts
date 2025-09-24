@@ -6,9 +6,14 @@ import {
 import process from "node:process";
 
 let pyodideInstance: Promise<PyodideInterface> | null = null;
+let initializationAttempted = false;
 
 export const getPyodide = async (): Promise<PyodideInterface> => {
-  if (!pyodideInstance) {
+  if (!pyodideInstance && !initializationAttempted) {
+    initializationAttempted = true;
+    
+    console.log("[py] Starting Pyodide initialization...");
+    
     // Support custom package download source (e.g., using private mirror)
     // Can be specified via environment variable PYODIDE_PACKAGE_BASE_URL
     const customPackageBaseUrl = process.env.PYODIDE_PACKAGE_BASE_URL;
@@ -16,13 +21,39 @@ export const getPyodide = async (): Promise<PyodideInterface> => {
       ? `${customPackageBaseUrl.replace(/\/$/, "")}/` // Ensure trailing slash
       : `https://fastly.jsdelivr.net/pyodide/v${pyodideVersion}/full/`;
 
-    pyodideInstance = loadPyodide({
-      // TODO: will be supported when v0.28.1 is released: https://github.com/pyodide/pyodide/commit/7be415bd4e428dc8e36d33cfc1ce2d1de10111c4
-      // @ts-ignore: Pyodide types may not include all configuration options
-      packageBaseUrl,
-    });
+    console.log("[py] Using Pyodide package base URL:", packageBaseUrl);
+    
+    pyodideInstance = Promise.race([
+      loadPyodide({
+        // TODO: will be supported when v0.28.1 is released: https://github.com/pyodide/pyodide/commit/7be415bd4e428dc8e36d33cfc1ce2d1de10111c4
+        // @ts-ignore: Pyodide types may not include all configuration options
+        packageBaseUrl,
+        stdout: (msg: string) => console.log("[pyodide stdout]", msg),
+        stderr: (msg: string) => console.warn("[pyodide stderr]", msg),
+      }),
+      // Add timeout for initialization to prevent hanging
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("Pyodide initialization timeout (60 seconds)"));
+        }, 60000);
+      })
+    ]);
+    
+    try {
+      const pyodide = await pyodideInstance;
+      console.log("[py] Pyodide initialized successfully");
+      return pyodide;
+    } catch (error) {
+      console.error("[py] Pyodide initialization failed:", error);
+      pyodideInstance = null;
+      initializationAttempted = false;
+      throw new Error(`Pyodide initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  } else if (pyodideInstance) {
+    return pyodideInstance;
+  } else {
+    throw new Error("Pyodide initialization already attempted and failed");
   }
-  return pyodideInstance;
 };
 
 export const getPip = async () => {

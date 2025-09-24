@@ -3,11 +3,37 @@ import { getPyodide, getPip, loadDeps, makeStream } from "../tool/py.ts";
 
 // const EXEC_TIMEOUT = 1000;
 const EXEC_TIMEOUT = 1000 * 60 * 3; // 3 minutes for heavy imports like pandas
+const INIT_TIMEOUT = 1000 * 60; // 1 minute for initialization
 
-// Cache pyodide instance
+// Cache pyodide instance with lazy initialization
+let initializationPromise: Promise<void> | null = null;
+
+const initializePyodide = async () => {
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      try {
+        console.log("[py] Starting background Pyodide initialization...");
+        await getPyodide();
+        await getPip();
+        console.log("[py] Background Pyodide initialization completed");
+      } catch (error) {
+        console.error("[py] Background initialization failed:", error);
+        initializationPromise = null; // Reset to allow retry
+        throw error;
+      }
+    })();
+  }
+  return initializationPromise;
+};
+
+// Export the initialization function for health checks
+export { initializePyodide };
+
+// Start initialization in background but don't wait for it
 queueMicrotask(() => {
-  getPyodide();
-  getPip();
+  initializePyodide().catch((error) => {
+    console.warn("[py] Background initialization failed, will retry on first use:", error);
+  });
 });
 
 const encoder = new TextEncoder();
@@ -55,7 +81,39 @@ export async function runPy(
     signal = abortSignal;
   }
 
-  const pyodide = await getPyodide();
+  // Initialize Pyodide with timeout protection
+  let pyodide: typeof PyodideInterface;
+  try {
+    console.log("[py] Ensuring Pyodide is initialized...");
+    
+    // Use initialization timeout to prevent hanging
+    const initPromise = Promise.race([
+      (async () => {
+        await initializePyodide();
+        return await getPyodide();
+      })(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("Pyodide initialization timeout"));
+        }, INIT_TIMEOUT);
+      })
+    ]);
+    
+    pyodide = await initPromise;
+    console.log("[py] Pyodide initialization completed");
+  } catch (initError) {
+    console.error("[py] Pyodide initialization failed:", initError);
+    
+    // Return an error stream immediately
+    return new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        const errorMessage = `[ERROR] Python runtime initialization failed: ${initError instanceof Error ? initError.message : 'Unknown error'}\n`;
+        controller.enqueue(encoder.encode(errorMessage));
+        controller.close();
+      }
+    });
+  }
 
   // Set up file system if options provided
   if (options) {

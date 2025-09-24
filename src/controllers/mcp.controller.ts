@@ -184,16 +184,24 @@ export const mcpHandler = (app: OpenAPIHono) => {
             
             let stream;
             try {
-              stream = await runPy(args.code, options);
+              // Add timeout protection for the entire Python execution
+              const executionPromise = runPy(args.code, options);
+              const timeoutPromise = new Promise<never>((_, reject) => {
+                setTimeout(() => {
+                  reject(new Error("Python execution timeout (4 minutes)"));
+                }, 240000); // 4 minutes total timeout
+              });
+              
+              stream = await Promise.race([executionPromise, timeoutPromise]);
             } catch (initError) {
-              console.error("[MCP] Python initialization error:", initError);
+              console.error("[MCP] Python initialization/execution error:", initError);
               return c.json({
                 jsonrpc: "2.0",
                 id: body.id,
                 error: {
                   code: -32603,
-                  message: "Python initialization failed",
-                  data: initError instanceof Error ? initError.message : "Unknown initialization error"
+                  message: "Python execution failed",
+                  data: initError instanceof Error ? initError.message : "Unknown execution error"
                 }
               });
             }
