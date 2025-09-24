@@ -22,12 +22,12 @@ export const mcpHandler = (app: OpenAPIHono) => {
   });
 
   // Handle CORS preflight requests
-  app.options("/mcp", (c) => {
+  app.options("/mcp", (c: any) => {
     return c.text("", 200);
   });
 
   // Handle MCP protocol requests (POST for JSON-RPC)
-  app.post("/mcp", async (c) => {
+  app.post("/mcp", async (c: any) => {
     const startTime = Date.now();
     const requestId = Math.random().toString(36).substring(7);
     
@@ -375,7 +375,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
   });
 
   // Handle connection via GET (for basic info)
-  app.get("/mcp", async (c) => {
+  app.get("/mcp", async (c: any) => {
     return c.json({
       jsonrpc: "2.0",
       result: {
@@ -413,7 +413,7 @@ export const sseHandler = (app: OpenAPIHono) =>
         },
       },
     }),
-    async (c) => {
+    async (c: any) => {
       return c.redirect("/mcp", 301);
     }
   );

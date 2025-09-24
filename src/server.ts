@@ -2,6 +2,9 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { createApp } from "./app.ts";
 import process from "node:process";
 
+// Declare Deno global for TypeScript
+declare const Deno: any;
+
 const port = Number(process.env.PORT || 9000);
 const hostname = "0.0.0.0";
 
@@ -13,7 +16,7 @@ console.log(`[server] Hostname: ${hostname}`);
 const app = new OpenAPIHono();
 
 // Add request logging middleware
-app.use('*', async (c, next) => {
+app.use('*', async (c: any, next: any) => {
   const start = Date.now();
   const { method, url } = c.req;
   
@@ -29,7 +32,7 @@ app.use('*', async (c, next) => {
 app.route("/", createApp());
 
 // Add a simple root endpoint for health check
-app.get("/", (c) => {
+app.get("/", (c: any) => {
   return c.json({ 
     message: "Code Runner MCP Server is running!", 
     version: "0.2.0",
@@ -52,7 +55,7 @@ app.get("/", (c) => {
 });
 
 // Global error handler
-app.onError((err, c) => {
+app.onError((err: any, c: any) => {
   console.error(`[server] Error: ${err.message}`);
   console.error(`[server] Stack: ${err.stack}`);
   
@@ -70,7 +73,7 @@ try {
     {
       port,
       hostname,
-      onError: (error) => {
+      onError: (error: any) => {
         console.error("[server] Server error:", error);
         return new Response("Internal Server Error", { status: 500 });
       },

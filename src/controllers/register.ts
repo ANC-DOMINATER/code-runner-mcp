@@ -1,4 +1,5 @@
 import type { OpenAPIHono } from "@hono/zod-openapi";
+import type { Context } from "@hono/zod-openapi";
 import { messageHandler } from "./messages.controller.ts";
 import { mcpHandler, sseHandler } from "./mcp.controller.ts";
 import { server } from "../app.ts";
@@ -12,7 +13,7 @@ export const registerAgent = (app: OpenAPIHono) => {
   openApiDocsHandler(app);
   
   // Health check endpoint for DigitalOcean App Platform
-  app.get("/health", async (c) => {
+  app.get("/health", async (c: any) => {
     try {
       // Basic health check
       const health = {
@@ -65,7 +66,7 @@ export const registerAgent = (app: OpenAPIHono) => {
   });
 
   // Fast connection test endpoint for MCP Client debugging
-  app.get("/mcp-test", (c) => {
+  app.get("/mcp-test", (c: any) => {
     return c.json({
       message: "MCP endpoint is reachable",
       timestamp: new Date().toISOString(),
@@ -77,7 +78,7 @@ export const registerAgent = (app: OpenAPIHono) => {
   });
 
   // Simplified MCP endpoint for testing - just returns success immediately
-  app.post("/mcp-simple", async (c) => {
+  app.post("/mcp-simple", async (c: any) => {
     try {
       const body = await c.req.json();
       console.log("[MCP-Simple] Request:", JSON.stringify(body, null, 2));
@@ -109,7 +110,7 @@ export const registerAgent = (app: OpenAPIHono) => {
   });
 
   // Tools list endpoint for debugging - only show actual tools
-  app.get("/tools", (c) => {
+  app.get("/tools", (c: any) => {
     try {
       const capabilities = server.getCapabilities?.();
       return c.json({

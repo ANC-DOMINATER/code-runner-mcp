@@ -9,7 +9,7 @@ import { runPy } from "../service/py-runner.ts";
  */
 export const mcpStreamHandler = (app: OpenAPIHono) => {
   // Handle MCP streaming protocol
-  app.post("/mcp-stream", async (c) => {
+  app.post("/mcp-stream", async (c: any) => {
     console.log("[MCP-Stream] Starting streaming connection...");
     
     // Set streaming headers
