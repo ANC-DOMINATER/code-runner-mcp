@@ -31,7 +31,7 @@ EXPOSE 9000
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:9000/health || exit 1
+    CMD curl -f http://localhost:9000/health || exit 1
 
 # Run the local server file directly with optimized flags
 ENTRYPOINT ["deno", "run", "--allow-all", "--unstable", "--no-check", "src/server.ts"]

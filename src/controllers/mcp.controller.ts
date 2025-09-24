@@ -163,7 +163,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
             jsonrpc: "2.0",
             id: body.id,
             error: {
-              code: -32602,
+              code: -32601,
               message: "Invalid params - missing tool name"
             }
           });
@@ -190,7 +190,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
                 jsonrpc: "2.0",
                 id: body.id,
                 error: {
-                  code: -32602,
+                  code: -32603,
                   message: "Code too long - maximum 50,000 characters allowed"
                 }
               });
