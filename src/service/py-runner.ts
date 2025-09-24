@@ -128,10 +128,15 @@ export async function runPy(
   }
 
   // Load packages with better error handling
+  let dependencyLoadingFailed = false;
+  let dependencyError: Error | null = null;
+  
   try {
     await loadDeps(code, options?.importToPackageMap);
   } catch (depError) {
     console.error("[py] Dependency loading error:", depError);
+    dependencyLoadingFailed = true;
+    dependencyError = depError instanceof Error ? depError : new Error('Unknown dependency error');
     // Continue execution - some packages might still work
   }
 
@@ -232,6 +237,12 @@ export async function runPy(
         try {
           // If an abort happened before execution – don't run
           if (signal?.aborted) return;
+
+          // Show warning if dependency loading failed
+          if (dependencyLoadingFailed && dependencyError) {
+            const warningMsg = `[WARNING] Package installation failed due to network/micropip issues.\nSome imports (like nltk, sklearn) may not be available.\nError: ${dependencyError.message}\n\nAttempting to run code anyway...\n\n`;
+            push("")(warningMsg);
+          }
 
           // Validate code before execution
           if (!code || typeof code !== 'string') {
