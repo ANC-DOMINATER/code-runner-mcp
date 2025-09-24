@@ -9,7 +9,7 @@ export const mcpHandler = (app: OpenAPIHono) => {
     // Set CORS headers
     c.header("Access-Control-Allow-Origin", "*");
     c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    c.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID");
     c.header("Access-Control-Max-Age", "86400");
     
     // Add connection and caching headers for better client compatibility
@@ -33,6 +33,10 @@ export const mcpHandler = (app: OpenAPIHono) => {
     
     console.log(`[MCP:${requestId}] Request started at ${new Date().toISOString()}`);
     console.log(`[MCP:${requestId}] Headers:`, JSON.stringify(c.req.header(), null, 2));
+    
+    // Immediately set response headers for streaming compatibility
+    c.header("Content-Type", "application/json");
+    c.header("Transfer-Encoding", "chunked");
     
     try {
       let body;

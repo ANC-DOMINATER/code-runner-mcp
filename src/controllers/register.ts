@@ -64,6 +64,50 @@ export const registerAgent = (app: OpenAPIHono) => {
     }
   });
 
+  // Fast connection test endpoint for MCP Client debugging
+  app.get("/mcp-test", (c) => {
+    return c.json({
+      message: "MCP endpoint is reachable",
+      timestamp: new Date().toISOString(),
+      server: "code-runner-mcp",
+      version: "0.2.0",
+      transport: "HTTP Streamable",
+      endpoint: "/mcp"
+    });
+  });
+
+  // Simplified MCP endpoint for testing - just returns success immediately
+  app.post("/mcp-simple", async (c) => {
+    try {
+      const body = await c.req.json();
+      console.log("[MCP-Simple] Request:", JSON.stringify(body, null, 2));
+      
+      // Return immediate success response for any request
+      const response = {
+        jsonrpc: "2.0",
+        id: body.id,
+        result: {
+          message: "MCP endpoint working",
+          method: body.method,
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+      console.log("[MCP-Simple] Response:", JSON.stringify(response, null, 2));
+      return c.json(response);
+    } catch (error) {
+      return c.json({
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32700,
+          message: "Parse error",
+          data: error instanceof Error ? error.message : "Unknown error"
+        }
+      }, 400);
+    }
+  });
+
   // Tools list endpoint for debugging - only show actual tools
   app.get("/tools", (c) => {
     try {

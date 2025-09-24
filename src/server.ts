@@ -36,11 +36,18 @@ app.get("/", (c) => {
     transport: "streamable-http",
     endpoints: {
       mcp: "/mcp",
+      "mcp-test": "/mcp-test",
+      "mcp-simple": "/mcp-simple", 
       health: "/health",
       messages: "/messages",
       tools: "/tools"
     },
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    debug: {
+      port: port,
+      hostname: hostname,
+      env: process.env.NODE_ENV || 'development'
+    }
   });
 });
 
