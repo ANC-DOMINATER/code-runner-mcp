@@ -183,12 +183,28 @@ export const mcpHandler = (app: OpenAPIHono) => {
             
             logger.info("Executing Python code:", toolArgs.code.substring(0, 200) + (toolArgs.code.length > 200 ? "..." : ""));
             
+            // Fix for n8n compatibility: unescape newlines and other escape sequences
+            // n8n may send code with escaped newlines (\n) as literal strings
+            let processedCode = toolArgs.code;
+            if (CONFIG.MCP.COMPATIBILITY.ACCEPT_LEGACY_PARAMS) {
+              // Handle common escape sequences that might come from n8n
+              processedCode = processedCode
+                .replace(/\\n/g, '\n')      // Convert \n to actual newlines
+                .replace(/\\t/g, '\t')      // Convert \t to actual tabs
+                .replace(/\\r/g, '\r')      // Convert \r to actual carriage returns
+                .replace(/\\"/g, '"')       // Convert \" to actual quotes
+                .replace(/\\'/g, "'")       // Convert \' to actual single quotes
+                .replace(/\\\\/g, '\\');    // Convert \\ to actual backslashes (do this last)
+              
+              logger.info("Processed Python code after unescaping:", processedCode.substring(0, 200) + (processedCode.length > 200 ? "..." : ""));
+            }
+            
             const options = toolArgs.importToPackageMap ? { importToPackageMap: toolArgs.importToPackageMap } : undefined;
             
             let stream;
             try {
               // Add timeout protection for the entire Python execution
-              const executionPromise = runPy(toolArgs.code, options);
+              const executionPromise = runPy(processedCode, options);
               const timeoutPromise = new Promise<never>((_, reject) => {
                 setTimeout(() => {
                   reject(new Error("Python execution timeout"));
@@ -253,7 +269,22 @@ export const mcpHandler = (app: OpenAPIHono) => {
               );
             }
             
-            const stream = await runJS(toolArgs.code);
+            // Fix for n8n compatibility: unescape newlines and other escape sequences
+            // n8n may send code with escaped newlines (\n) as literal strings
+            let processedCode = toolArgs.code;
+            if (CONFIG.MCP.COMPATIBILITY.ACCEPT_LEGACY_PARAMS) {
+              processedCode = processedCode
+                .replace(/\\n/g, '\n')      // Convert \n to actual newlines
+                .replace(/\\t/g, '\t')      // Convert \t to actual tabs
+                .replace(/\\r/g, '\r')      // Convert \r to actual carriage returns
+                .replace(/\\"/g, '"')       // Convert \" to actual quotes
+                .replace(/\\'/g, "'")       // Convert \' to actual single quotes
+                .replace(/\\\\/g, '\\');    // Convert \\ to actual backslashes (do this last)
+              
+              logger.info("Processed JavaScript code after unescaping:", processedCode.substring(0, 200) + (processedCode.length > 200 ? "..." : ""));
+            }
+            
+            const stream = await runJS(processedCode);
             const decoder = new TextDecoder();
             let output = "";
             
