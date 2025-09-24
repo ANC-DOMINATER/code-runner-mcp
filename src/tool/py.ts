@@ -82,16 +82,36 @@ export const loadDeps = async (
   try {
     const pyodide = await getPyodide();
 
-    // Merge user-provided mapping with default mapping
-    const defaultMappings: Record<string, string> = {
-      sklearn: "scikit-learn",
-      cv2: "opencv-python",
-      PIL: "Pillow",
-      bs4: "beautifulsoup4",
+    // Define packages available in Pyodide distribution (use loadPackage)
+    const pyodidePackages: Record<string, string> = {
+      numpy: "numpy",
+      pandas: "pandas",
+      matplotlib: "matplotlib",
+      scipy: "scipy",
+      nltk: "nltk",
+      sympy: "sympy",
+      lxml: "lxml",
+      beautifulsoup4: "beautifulsoup4",
+      bs4: "beautifulsoup4", // bs4 is an alias for beautifulsoup4
+      requests: "requests",
+      pillow: "pillow",
+      PIL: "pillow", // PIL is part of pillow
     };
 
-    const combinedMap: Record<string, string> = {
-      ...defaultMappings,
+    // Define packages that need micropip installation
+    const micropipMappings: Record<string, string> = {
+      sklearn: "scikit-learn",
+      cv2: "opencv-python",
+      tensorflow: "tensorflow",
+      torch: "torch",
+      fastapi: "fastapi",
+      flask: "flask",
+      django: "django",
+    };
+
+    // Merge user-provided mapping with defaults
+    const combinedMicropipMap: Record<string, string> = {
+      ...micropipMappings,
       ...importToPackageMap,
     };
 
@@ -155,68 +175,99 @@ result`;
     if (imports && imports.length > 0) {
       console.log("[py] Found missing imports:", imports);
       
-      // Only load micropip when we actually need to install packages
-      let pip;
-      try {
-        pip = await getPip();
-        if (!pip) {
-          console.log("[py] Micropip not available, skipping package installation");
-          return;
+      // Separate imports into Pyodide packages and micropip packages
+      const pyodideToLoad: string[] = [];
+      const micropipToInstall: string[] = [];
+      
+      for (const importName of imports) {
+        if (pyodidePackages[importName]) {
+          pyodideToLoad.push(pyodidePackages[importName]);
+        } else if (combinedMicropipMap[importName]) {
+          micropipToInstall.push(combinedMicropipMap[importName]);
+        } else {
+          // Default to micropip for unknown packages
+          micropipToInstall.push(importName);
         }
-      } catch (pipError) {
-        console.error("[py] Failed to load micropip, skipping package installation:", pipError);
-        return;
       }
       
-      // Map import names to package names, handling dot notation
-      const packagesToInstall = imports.map((importName: string) => {
-        return combinedMap[importName] || importName;
-      });
-
-      // Remove duplicates and filter out empty strings
-      const uniquePackages = [...new Set(packagesToInstall)].filter(
-        (pkg) => typeof pkg === "string" && pkg.trim().length > 0
-      );
-
-      if (uniquePackages.length === 0) {
-        console.log("[py] No packages to install after mapping");
-        return;
+      // Load Pyodide packages first (more reliable)
+      if (pyodideToLoad.length > 0) {
+        console.log("[py] Loading Pyodide packages:", pyodideToLoad);
+        try {
+          // Add timeout for Pyodide package loading
+          const loadPromise = pyodide.loadPackage(pyodideToLoad, { 
+            messageCallback: () => {}
+          });
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error("Pyodide package loading timeout")), 60000);
+          });
+          
+          await Promise.race([loadPromise, timeoutPromise]);
+          console.log(`[py] Successfully loaded Pyodide packages: ${pyodideToLoad.join(", ")}`);
+        } catch (pyodideError) {
+          console.error("[py] Failed to load some Pyodide packages:", pyodideError);
+          // Continue with micropip packages
+        }
       }
-
-      console.log("[py] Installing packages:", uniquePackages);
-
-      // Wrap package installation in timeout and error handling
-      try {
-        // Add timeout for package installation
-        const installPromise = pip.install(uniquePackages);
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("Package installation timeout")), 60000);
-        });
+      
+      // Then install micropip packages if needed
+      if (micropipToInstall.length > 0) {
+        console.log("[py] Installing micropip packages:", micropipToInstall);
         
-        await Promise.race([installPromise, timeoutPromise]);
-        console.log(
-          `[py] Successfully installed all packages: ${uniquePackages.join(
-            ", "
-          )}`
-        );
-      } catch (_batchError) {
-        console.warn(
-          "[py] Batch installation failed, trying individual installation"
+        let pip;
+        try {
+          pip = await getPip();
+          if (!pip) {
+            console.log("[py] Micropip not available, skipping micropip package installation");
+            return;
+          }
+        } catch (pipError) {
+          console.error("[py] Failed to load micropip, skipping micropip package installation:", pipError);
+          return;
+        }
+        
+        // Remove duplicates and filter out empty strings
+        const uniquePackages = [...new Set(micropipToInstall)].filter(
+          (pkg) => typeof pkg === "string" && pkg.trim().length > 0
         );
 
-        // Fall back to individual installation with timeouts
-        for (const pkg of uniquePackages) {
+        if (uniquePackages.length === 0) {
+          console.log("[py] No micropip packages to install after filtering");
+        } else {
+          // Wrap package installation in timeout and error handling
           try {
-            const singleInstallPromise = pip.install(pkg);
-            const singleTimeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error(`Installation timeout for ${pkg}`)), 30000);
+            // Add timeout for package installation
+            const installPromise = pip.install(uniquePackages);
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error("Package installation timeout")), 60000);
             });
             
-            await Promise.race([singleInstallPromise, singleTimeoutPromise]);
-            console.log(`[py] Successfully installed: ${pkg}`);
-          } catch (error) {
-            console.warn(`[py] Failed to install ${pkg}:`, error);
-            // Continue with other packages
+            await Promise.race([installPromise, timeoutPromise]);
+            console.log(
+              `[py] Successfully installed micropip packages: ${uniquePackages.join(
+                ", "
+              )}`
+            );
+          } catch (_batchError) {
+            console.warn(
+              "[py] Batch installation failed, trying individual installation"
+            );
+
+            // Fall back to individual installation with timeouts
+            for (const pkg of uniquePackages) {
+              try {
+                const singleInstallPromise = pip.install(pkg);
+                const singleTimeoutPromise = new Promise((_, reject) => {
+                  setTimeout(() => reject(new Error(`Installation timeout for ${pkg}`)), 30000);
+                });
+                
+                await Promise.race([singleInstallPromise, singleTimeoutPromise]);
+                console.log(`[py] Successfully installed: ${pkg}`);
+              } catch (error) {
+                console.warn(`[py] Failed to install ${pkg}:`, error);
+                // Continue with other packages
+              }
+            }
           }
         }
       }

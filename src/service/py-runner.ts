@@ -127,25 +127,20 @@ export async function runPy(
     }
   }
 
-  // DISABLED: Load packages with better error handling
-  // Automatic package loading can cause server crashes in production
-  // Users can still manually install packages in their code using micropip
+  // Re-enabled smart package loading with hybrid Pyodide/micropip approach
+  // This now properly handles both Pyodide packages and micropip packages
   let dependencyLoadingFailed = false;
   let dependencyError: Error | null = null;
   
-  if (options?.importToPackageMap && Object.keys(options.importToPackageMap).length > 0) {
-    // Only attempt package loading if explicitly requested via importToPackageMap
-    try {
-      console.log("[py] Explicit package installation requested via importToPackageMap");
-      await loadDeps(code, options.importToPackageMap);
-    } catch (depError) {
-      console.error("[py] Explicit dependency loading error:", depError);
-      dependencyLoadingFailed = true;
-      dependencyError = depError instanceof Error ? depError : new Error('Unknown dependency error');
-      // Continue execution - some packages might still work
-    }
-  } else {
-    console.log("[py] Automatic package loading disabled for production stability");
+  try {
+    console.log("[py] Starting smart package loading...");
+    await loadDeps(code, options?.importToPackageMap);
+    console.log("[py] Package loading completed successfully");
+  } catch (depError) {
+    console.error("[py] Dependency loading error:", depError);
+    dependencyLoadingFailed = true;
+    dependencyError = depError instanceof Error ? depError : new Error('Unknown dependency error');
+    // Continue execution - some packages might still work
   }
 
   // Interrupt buffer to be set when aborting
