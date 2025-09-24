@@ -51,10 +51,16 @@ export const getPip = async () => {
   try {
     console.log("[py] Loading micropip package...");
     
-    // Load micropip package - this should work with our improved CDN fallbacks
-    await pyodide.loadPackage("micropip", { 
+    // Add timeout protection for micropip loading
+    const micropipPromise = pyodide.loadPackage("micropip", { 
       messageCallback: () => {}
     });
+    
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Micropip loading timeout")), 30000);
+    });
+    
+    await Promise.race([micropipPromise, timeoutPromise]);
     
     // Import micropip
     const micropip = pyodide.pyimport("micropip");
@@ -63,7 +69,8 @@ export const getPip = async () => {
     
   } catch (error) {
     console.error("[py] Failed to load micropip:", error);
-    throw new Error(`Micropip initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    // Don't throw - return null to indicate micropip unavailable
+    return null;
   }
 };
 
@@ -71,24 +78,27 @@ export const loadDeps = async (
   code: string,
   importToPackageMap: Record<string, string> = {}
 ) => {
-  const pyodide = await getPyodide();
-
-  // Merge user-provided mapping with default mapping
-  const defaultMappings: Record<string, string> = {
-    sklearn: "scikit-learn",
-    cv2: "opencv-python",
-    PIL: "Pillow",
-    bs4: "beautifulsoup4",
-  };
-
-  const combinedMap: Record<string, string> = {
-    ...defaultMappings,
-    ...importToPackageMap,
-  };
-
+  // Wrap entire function in try-catch to prevent any crashes
   try {
-    // Optimized approach for code analysis with better performance
-    const analysisCode = `
+    const pyodide = await getPyodide();
+
+    // Merge user-provided mapping with default mapping
+    const defaultMappings: Record<string, string> = {
+      sklearn: "scikit-learn",
+      cv2: "opencv-python",
+      PIL: "Pillow",
+      bs4: "beautifulsoup4",
+    };
+
+    const combinedMap: Record<string, string> = {
+      ...defaultMappings,
+      ...importToPackageMap,
+    };
+
+    let imports;
+    try {
+      // Optimized approach for code analysis with better performance
+      const analysisCode = `
 import pyodide, sys
 try:
     # Find all imports in the code
@@ -136,7 +146,11 @@ except Exception as e:
 
 result`;
 
-    const imports = pyodide.runPython(analysisCode).toJs();
+      imports = pyodide.runPython(analysisCode).toJs();
+    } catch (analysisError) {
+      console.warn("[py] Import analysis failed, skipping dependency loading:", analysisError);
+      return;
+    }
 
     if (imports && imports.length > 0) {
       console.log("[py] Found missing imports:", imports);
@@ -145,6 +159,10 @@ result`;
       let pip;
       try {
         pip = await getPip();
+        if (!pip) {
+          console.log("[py] Micropip not available, skipping package installation");
+          return;
+        }
       } catch (pipError) {
         console.error("[py] Failed to load micropip, skipping package installation:", pipError);
         return;
@@ -167,9 +185,15 @@ result`;
 
       console.log("[py] Installing packages:", uniquePackages);
 
-      // Try batch installation first for better performance
+      // Wrap package installation in timeout and error handling
       try {
-        await pip.install(uniquePackages);
+        // Add timeout for package installation
+        const installPromise = pip.install(uniquePackages);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Package installation timeout")), 60000);
+        });
+        
+        await Promise.race([installPromise, timeoutPromise]);
         console.log(
           `[py] Successfully installed all packages: ${uniquePackages.join(
             ", "
@@ -180,10 +204,15 @@ result`;
           "[py] Batch installation failed, trying individual installation"
         );
 
-        // Fall back to individual installation
+        // Fall back to individual installation with timeouts
         for (const pkg of uniquePackages) {
           try {
-            await pip.install(pkg);
+            const singleInstallPromise = pip.install(pkg);
+            const singleTimeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error(`Installation timeout for ${pkg}`)), 30000);
+            });
+            
+            await Promise.race([singleInstallPromise, singleTimeoutPromise]);
             console.log(`[py] Successfully installed: ${pkg}`);
           } catch (error) {
             console.warn(`[py] Failed to install ${pkg}:`, error);
@@ -195,8 +224,8 @@ result`;
       console.log("[py] No missing imports detected");
     }
   } catch (error) {
-    // If dependency loading fails, log but don't fail completely
-    console.warn("[py] Failed to load dependencies:", error);
+    // If dependency loading fails completely, log but don't fail completely
+    console.error("[py] Dependency loading failed completely:", error);
     // Continue execution without external dependencies
   }
 };
