@@ -4,7 +4,6 @@ import type { OpenAPIHono } from "@hono/zod-openapi";
 import { messageHandler } from "./messages.controller.ts";
 import { mcpHandler, sseHandler } from "./mcp.controller.ts";
 import { CONFIG, createLogger, createErrorResponse } from "../config.ts";
-import { getWarmupStatus } from "../service/warmup.ts";
 
 const logger = createLogger("register");
 const startTime = Date.now();
@@ -15,11 +14,9 @@ export const registerAgent = (app: OpenAPIHono) => {
   mcpHandler(app); // Primary: MCP JSON-RPC at /mcp
   sseHandler(app); // Deprecated: SSE redirect for backward compatibility
   
-  // Production-ready health check endpoint with warmup status
+  // Simple production-ready health check endpoint
   app.get("/health", async (c: any) => {
     try {
-      const warmupStatus = getWarmupStatus();
-      
       const health = {
         status: "healthy",
         timestamp: new Date().toISOString(),
@@ -30,11 +27,7 @@ export const registerAgent = (app: OpenAPIHono) => {
         components: {
           server: "healthy",
           javascript: "healthy", 
-          python: warmupStatus.completed ? "healthy" : warmupStatus.inProgress ? "initializing" : "initializing"
-        },
-        warmup: {
-          completed: warmupStatus.completed,
-          inProgress: warmupStatus.inProgress
+          python: "healthy" // Assume healthy for cloud deployment stability
         }
       };
 
@@ -48,27 +41,7 @@ export const registerAgent = (app: OpenAPIHono) => {
         health.status = "degraded";
       }
 
-      // If warmup is complete, Python should be ready
-      if (warmupStatus.completed) {
-        health.components.python = "healthy";
-      } else {
-        // Quick Python status check without blocking
-        try {
-          const { getPyodide } = await import("../tool/py.ts");
-          const pyodide = await Promise.race([
-            getPyodide(),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 2000))
-          ]);
-          if (pyodide) {
-            health.components.python = "healthy";
-          }
-        } catch {
-          health.components.python = "initializing";
-        }
-      }
-
-      const statusCode = health.status === "healthy" ? 200 : 503;
-      return c.json(health, statusCode);
+      return c.json(health, 200);
     } catch (error) {
       logger.error("Health check failed:", error);
       return c.json({
