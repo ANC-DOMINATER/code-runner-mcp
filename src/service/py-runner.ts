@@ -16,7 +16,7 @@ const initializePyodide = async () => {
       try {
         console.log("[py] Starting background Pyodide initialization...");
         await getPyodide();
-        await getPip();
+        // Don't load micropip here - load it only when needed
         console.log("[py] Background Pyodide initialization completed");
       } catch (error) {
         console.error("[py] Background initialization failed:", error);

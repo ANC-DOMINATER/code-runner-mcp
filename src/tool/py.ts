@@ -60,9 +60,19 @@ export const getPyodide = async (): Promise<PyodideInterface> => {
 
 export const getPip = async () => {
   const pyodide = await getPyodide();
-  await pyodide.loadPackage("micropip", { messageCallback: () => {} });
-  const micropip = pyodide.pyimport("micropip");
-  return micropip;
+  
+  try {
+    // Load micropip package first
+    await pyodide.loadPackage("micropip", { messageCallback: () => {} });
+    
+    // Then import it
+    const micropip = pyodide.pyimport("micropip");
+    console.log("[py] Micropip loaded successfully");
+    return micropip;
+  } catch (error) {
+    console.error("[py] Failed to load micropip:", error);
+    throw new Error(`Micropip initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 };
 
 export const loadDeps = async (
@@ -136,8 +146,18 @@ result`;
 
     const imports = pyodide.runPython(analysisCode).toJs();
 
-    const pip = await getPip();
     if (imports && imports.length > 0) {
+      console.log("[py] Found missing imports:", imports);
+      
+      // Only load micropip when we actually need to install packages
+      let pip;
+      try {
+        pip = await getPip();
+      } catch (pipError) {
+        console.error("[py] Failed to load micropip, skipping package installation:", pipError);
+        return;
+      }
+      
       // Map import names to package names, handling dot notation
       const packagesToInstall = imports.map((importName: string) => {
         return combinedMap[importName] || importName;
@@ -153,7 +173,6 @@ result`;
         return;
       }
 
-      console.log("[py] Found missing imports:", imports);
       console.log("[py] Installing packages:", uniquePackages);
 
       // Try batch installation first for better performance
