@@ -12,6 +12,12 @@ export const mcpHandler = (app: OpenAPIHono) => {
     c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     c.header("Access-Control-Max-Age", "86400");
     
+    // Add connection and caching headers for better client compatibility
+    c.header("Connection", "keep-alive");
+    c.header("Keep-Alive", "timeout=120, max=100");
+    c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+    c.header("X-Content-Type-Options", "nosniff");
+    
     await next();
   });
 
@@ -22,13 +28,20 @@ export const mcpHandler = (app: OpenAPIHono) => {
 
   // Handle MCP protocol requests (POST for JSON-RPC)
   app.post("/mcp", async (c) => {
+    const startTime = Date.now();
+    const requestId = Math.random().toString(36).substring(7);
+    
+    console.log(`[MCP:${requestId}] Request started at ${new Date().toISOString()}`);
+    console.log(`[MCP:${requestId}] Headers:`, JSON.stringify(c.req.header(), null, 2));
+    
     try {
       let body;
       try {
         body = await c.req.json();
+        console.log(`[MCP:${requestId}] Request body:`, JSON.stringify(body, null, 2));
       } catch (parseError) {
-        console.error("[MCP] JSON parse error:", parseError);
-        return c.json({
+        console.error(`[MCP:${requestId}] JSON parse error:`, parseError);
+        const errorResponse = {
           jsonrpc: "2.0",
           id: null,
           error: {
@@ -36,11 +49,10 @@ export const mcpHandler = (app: OpenAPIHono) => {
             message: "Parse error",
             data: parseError instanceof Error ? parseError.message : "Invalid JSON"
           }
-        }, 400);
+        };
+        console.log(`[MCP:${requestId}] Sending parse error response:`, JSON.stringify(errorResponse, null, 2));
+        return c.json(errorResponse, 400);
       }
-      
-      // Log for debugging
-      console.log("[MCP] Request:", JSON.stringify(body, null, 2));
       
       // Handle MCP JSON-RPC requests
       if (body.method === "initialize") {
@@ -77,7 +89,9 @@ export const mcpHandler = (app: OpenAPIHono) => {
           }
         };
         
-        console.log("[MCP] Initialize response:", JSON.stringify(response, null, 2));
+        console.log(`[MCP:${requestId}] Initialize response:`, JSON.stringify(response, null, 2));
+        const elapsed = Date.now() - startTime;
+        console.log(`[MCP:${requestId}] Initialize completed in ${elapsed}ms`);
         
         // Ensure proper JSON response with CORS headers
         c.header("Content-Type", "application/json");
@@ -332,12 +346,13 @@ export const mcpHandler = (app: OpenAPIHono) => {
       });
       
     } catch (error) {
-      console.error("[MCP] Unhandled protocol error:", error);
-      console.error("[MCP] Stack trace:", error instanceof Error ? error.stack : "No stack trace");
+      const elapsed = Date.now() - startTime;
+      console.error(`[MCP:${requestId}] Unhandled protocol error after ${elapsed}ms:`, error);
+      console.error(`[MCP:${requestId}] Stack trace:`, error instanceof Error ? error.stack : "No stack trace");
       
       // Try to return a proper JSON-RPC error response
       try {
-        return c.json({
+        const errorResponse = {
           jsonrpc: "2.0",
           id: null,
           error: {
@@ -345,9 +360,11 @@ export const mcpHandler = (app: OpenAPIHono) => {
             message: "Internal error",
             data: error instanceof Error ? error.message : "Unknown error"
           }
-        }, 500);
+        };
+        console.log(`[MCP:${requestId}] Sending error response:`, JSON.stringify(errorResponse, null, 2));
+        return c.json(errorResponse, 500);
       } catch (responseError) {
-        console.error("[MCP] Failed to send error response:", responseError);
+        console.error(`[MCP:${requestId}] Failed to send error response:`, responseError);
         return c.text("Internal Server Error", 500);
       }
     }
