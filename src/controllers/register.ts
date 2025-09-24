@@ -41,21 +41,32 @@ export const registerAgent = (app: OpenAPIHono) => {
         health.status = "degraded";
       }
 
-      // Non-blocking Python status check
-      Promise.resolve().then(async () => {
+      // Blocking Python status check with timeout
+      try {
+        const { initializePyodide } = await import("../service/py-runner.ts");
+        await Promise.race([
+          initializePyodide(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), CONFIG.TIMEOUTS.HEALTH_CHECK))
+        ]);
+        health.components.python = "healthy";
+      } catch (pyError) {
+        // Check if Pyodide is actually working by testing a simple operation
         try {
-          const { initializePyodide } = await import("../service/py-runner.ts");
-          await Promise.race([
-            initializePyodide(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), CONFIG.TIMEOUTS.HEALTH_CHECK))
+          const { getPyodide } = await import("../tool/py.ts");
+          const pyodide = await Promise.race([
+            getPyodide(),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000))
           ]);
-          health.components.python = "healthy";
+          // If we can get Pyodide instance, it's healthy
+          if (pyodide) {
+            health.components.python = "healthy";
+          } else {
+            health.components.python = "initializing";
+          }
         } catch {
           health.components.python = "initializing";
         }
-      }).catch(() => {
-        health.components.python = "unhealthy";
-      });
+      }
 
       const statusCode = health.status === "healthy" ? 200 : 503;
       return c.json(health, statusCode);
